@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <netinet/in.h>
 
 class Socket {
@@ -19,9 +20,21 @@ public:
     bool connectS(const char* serverIp, int port) const;
 
 
+    template <typename T>
+    ssize_t sendData(const T& data) const {
+        return send(_socketfd, &data, sizeof(T), 0);
+    }
+
+
+    template <typename T>
+    ssize_t receiveData(T& data) const {
+        return recv(_socketfd, &data, sizeof(T), MSG_WAITALL);
+    }
+
     ssize_t sendData(const char* data) const;
 
     ssize_t receiveData(char* buffer, size_t bufferSize) const;
+
 
     int getS() const;
 

@@ -51,9 +51,9 @@ bool Socket::listenS(const int backlog) const {
 
 
 int Socket::acceptS(sockaddr_in* clientAddr, socklen_t* clientLen) const {
-    int clientSocket = accept(_socketfd,
-                              reinterpret_cast<struct sockaddr*>(clientAddr),
-                              clientLen);
+    const int clientSocket = accept(_socketfd,
+                                    reinterpret_cast<struct sockaddr*>(clientAddr),
+                                    clientLen);
     if (clientSocket == -1) {
         perror("Accept failed");
         return -1;
@@ -79,12 +79,11 @@ bool Socket::connectS(const char* serverIp, int port) const {
 
 
 ssize_t Socket::sendData(const char* data) const {
-    const ssize_t bytesSent = send(_socketfd, data, strlen(data), 0);
-    return bytesSent;
+    return send(_socketfd, data, strlen(data), 0);
 }
 
 
-ssize_t Socket::receiveData(char* buffer, size_t bufferSize) const {
+ssize_t Socket::receiveData(char* buffer, const size_t bufferSize) const {
     const ssize_t bytesReceived =  recv(_socketfd, buffer, bufferSize - 1, 0);
     return bytesReceived;
 }
