@@ -15,7 +15,7 @@ public:
     // Command Handlers
     void handleList(const Socket& clientSocket) const;
     void handleGet(const Socket& clientSocket, const std::string& filename) const;
-    void handlePut(const Socket& clientSocket, const std::string& filename);
+    void handlePut(const Socket& clientSocket, const std::string& filename) const;
     void handleDelete(const Socket& clientSocket, const std::string& filename) const;
     void handleInfo(const Socket& clientSocket, const std::string& filename) const;
 
@@ -28,4 +28,6 @@ private:
     Socket acceptClient() const;
 
     void handleClient(Socket clientSocket) const;
+
+    static std::string getFilePermissions(mode_t mode);
 };
