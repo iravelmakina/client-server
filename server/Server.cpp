@@ -63,10 +63,10 @@ Socket Server::acceptClient() const {
 }
 
 
-void Server::handleClient(const Socket clientSocket) const {
-    char buffer[1024];
+void Server::handleClient(const Socket& clientSocket) const {
     while (true) {
-        memset(buffer, 0, 1024);
+        char buffer[1024];
+        memset(buffer, '\0', sizeof(buffer));
         const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer) - 1);
 
         if (bytesReceived <= 0) {
@@ -74,11 +74,11 @@ void Server::handleClient(const Socket clientSocket) const {
         }
 
         std::string command(buffer);
-        std::cout << "Received data: " << buffer << std::endl;
+        std::cout << "bytesReceived: " << bytesReceived << std::endl;
 
         if (command.find("GET") == 0) {
             handleGet(clientSocket, command.substr(4));
-        } else if (command == "LIST") {
+        } else if (command.find("LIST") == 0) {
             handleList(clientSocket);
         } else if (command.find("PUT") == 0) {
             handlePut(clientSocket, command.substr(4));
@@ -90,21 +90,73 @@ void Server::handleClient(const Socket clientSocket) const {
             clientSocket.sendData("Goodbye!");
             break;
         } else {
-            clientSocket.sendData("Invalid command");
+            clientSocket.sendData("400 BAD_REQUEST Invalid command.");
         }
     }
 } // validation of len
 
 
+void Server::handleGet(const Socket& clientSocket, const std::string& filename) const {
+    const std::string filePath = _directory + filename;
+    const int fileFd = open(filePath.c_str(), O_RDONLY);
+
+    if (fileFd == -1) {
+        clientSocket.sendData("404 NOT_FOUND File Not Found.");
+        perror("open() error");
+        return;
+    }
+
+    struct stat fileStat{};
+    fstat(fileFd, &fileStat);
+    const uint32_t fileSize = fileStat.st_size;
+
+    clientSocket.sendData(fileSize);
+
+    char buffer[1024];
+    ssize_t bytesRead;
+
+    while ((bytesRead = read(fileFd, buffer, sizeof(buffer))) > 0) {
+        send(clientSocket.getS(), buffer, bytesRead, 0);
+    } // correct
+
+    close(fileFd);
+}
+
+
+void Server::handlePut(const Socket& clientSocket, const std::string &filename) const {
+    uint32_t fileSize;
+    clientSocket.receiveData(fileSize);
+    std::cout << "File size: " << fileSize << " bytes" << std::endl;
+
+    const int fileFd = open((_directory + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (fileFd == -1) {
+        clientSocket.sendData("500 SERVER_ERROR Unable to create file.");
+        std::perror("open() error");
+        return;
+    }
+
+    char buffer[1024];
+    ssize_t bytesReceived;
+    size_t totalReceived = 0;
+
+    while (totalReceived < fileSize && (bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer))) > 0) {
+        write(fileFd, buffer, bytesReceived);
+        totalReceived += bytesReceived;
+    }
+}
+
+
 void Server::handleList(const Socket& clientSocket) const {
     DIR* dir = opendir(_directory.c_str());
     if (dir == nullptr) {
-        clientSocket.sendData("Failed to open directory");
+        clientSocket.sendData("500 SERVER_ERROR Failed to open directory.");
+        std::perror("opendir() error");
         return;
     }
 
     dirent* entry;
     std::ostringstream fileListStream;
+
 
     while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_type == DT_REG) {
@@ -113,7 +165,7 @@ void Server::handleList(const Socket& clientSocket) const {
     }
 
     closedir(dir);
-    clientSocket.sendData(fileListStream.str().c_str());
+    clientSocket.sendData((fileListStream.str()).c_str());
 }
 
 
@@ -122,14 +174,14 @@ void Server::handleDelete(const Socket& clientSocket, const std::string& filenam
 
     if (access(filePath.c_str(), F_OK) == 0) {
         if (unlink(filePath.c_str()) == 0) {
-            clientSocket.sendData(("File deleted: " + filename + "\n").c_str());
+            clientSocket.sendData("File deleted successfully.");
         } else {
-            clientSocket.sendData("Error: Failed to delete file\n");
-            std::cerr << "Error deleting file: " << filePath << std::endl;
+            clientSocket.sendData("500 SERVER_ERROR Could not delete file.");
+            std::perror("unlink() error");
         }
     } else {
-        clientSocket.sendData("Error: File not found\n");
-        std::cerr << "File not found: " << filePath << std::endl;
+        clientSocket.sendData("404 NOT_FOUND File does not exist.");
+        std::perror("access() error");
     }
 }
 
@@ -138,16 +190,22 @@ void Server::handleInfo(const Socket& clientSocket, const std::string& filename)
     const std::string filePath = _directory + filename;
     struct stat fileStat;
 
-    if (stat(filePath.c_str(), &fileStat) == 0) {
-        std::ostringstream metadataStream;
-        metadataStream << "Size: " << fileStat.st_size << " bytes\n";
-        metadataStream << "Last Modified: " << ctime(&fileStat.st_mtime);
-        metadataStream << "Last Accessed: " << ctime(&fileStat.st_atime);
-        metadataStream << "Creation Time: " << ctime(&fileStat.st_birthtime);
-        metadataStream << "Permissions: " << getFilePermissions(fileStat.st_mode) << "\n";
-        clientSocket.sendData(metadataStream.str().c_str());
+    if (access(filePath.c_str(), F_OK) == 0) {
+        if (stat(filePath.c_str(), &fileStat) == 0) {
+            std::ostringstream metadataStream;
+            metadataStream << "Size: " << fileStat.st_size << " bytes\n";
+            metadataStream << "Last Modified: " << ctime(&fileStat.st_mtime);
+            metadataStream << "Last Accessed: " << ctime(&fileStat.st_atime);
+            metadataStream << "Creation Time: " << ctime(&fileStat.st_birthtime);
+            metadataStream << "Permissions: " << getFilePermissions(fileStat.st_mode) << "\n";
+            clientSocket.sendData((metadataStream.str()).c_str());
+        } else {
+            clientSocket.sendData("500 SERVER_ERROR Unable to retrieve file info.");
+            std::perror("stat() error");
+        }
     } else {
-        clientSocket.sendData("Error: File not found\n");
+        clientSocket.sendData("404 NOT_FOUND File does not exist.");
+        std::perror("access() error");
     }
 }
 
