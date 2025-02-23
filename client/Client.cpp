@@ -21,7 +21,7 @@ void Client::connect(const char* serverIp, const int port) {
 
 
 void Client::disconnect() const {
-    clientSocket.closeS();
+    clientSocket.sendData("EXIT");
     std::cout << "Disconnected from server." << std::endl;
 }
 
@@ -31,29 +31,35 @@ void Client::sendCommand(const char* command) const {
 }
 
 
-void Client::receiveResponse() const {
-    char buffer[1024];
-    memset(buffer, '\0', 1024);
+std::string Client::receiveResponse() const {
+    char buffer[512] = {};
     const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer) - 1);
     if (bytesReceived > 0) {
-        std::cout << "Received data:\n" << buffer << std::endl;
-    } else {
-        std::cout << "No response from server." << std::endl;
+        std::cout << "Server Response:\n" << buffer << std::endl;
+        return {buffer};
     }
+    std::cout << "No response from server." << std::endl;
+    return "";
 }
 
 
 void Client::downloadFile(const std::string &filename) const {
+    const std::string response = receiveResponse();
+    if (response.find("200 OK") != 0) {
+        std::cout << "Error: " << response << std::endl;
+        return;
+    }
+    clientSocket.sendData("ACK");
+
     uint32_t fileSize;
     clientSocket.receiveData(fileSize);
-    std::cout << "File size: " << fileSize << " bytes" << std::endl;
+    clientSocket.sendData("ACK");
 
     const int fileFd = open(("../../client/files/" + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fileFd == -1) {
-        std::cerr << "Error: Cannot create file\n";
+        std::cout << "Error: Cannot create file\n";
         return;
     }
-    // what if already exists
 
     char buffer[1024];
     ssize_t bytesReceived;
@@ -63,23 +69,33 @@ void Client::downloadFile(const std::string &filename) const {
         write(fileFd, buffer, bytesReceived);
         totalReceived += bytesReceived;
     }
+    close(fileFd);
 }
 
 
 void Client::uploadFile(const std::string &filename) const {
-    const int fileFd = open(("../../client/files/" + filename).c_str(), O_RDONLY);
+    std::string response = receiveResponse();
+    if (response.find("200 OK") != 0) {
+        std::cout << "Error: " << response << std::endl;
+        return;
+    }
 
+    const int fileFd = open(("../../client/files/" + filename).c_str(), O_RDONLY);
     if (fileFd == -1) {
-        std::cerr << "Error: Cannot open file\n";
+        std::cout << "Error: Cannot open file\n";
         return;
     }
 
     struct stat fileStat{};
     fstat(fileFd, &fileStat);
     const uint32_t fileSize = fileStat.st_size;
-
     clientSocket.sendData(fileSize);
-    std::cout << "File size: " << fileSize << " bytes" << std::endl;
+
+    response = receiveResponse();
+    if (response.find("ACK") != 0) {
+        std::cout << "Error: Server did not acknowledge file size.\n";
+        return;
+    }
 
     char buffer[1024];
     ssize_t bytesRead;
@@ -89,6 +105,13 @@ void Client::uploadFile(const std::string &filename) const {
     }
 
     close(fileFd);
+
+    response = receiveResponse();
+    if (response.find("200 OK") == 0) {
+        std::cout << "Upload successful.\n";
+    } else {
+        std::cerr << "Error: " << response << std::endl;
+    }
 }
 
 

@@ -12,7 +12,6 @@ public:
 
     void stop() const;
 
-    // Command Handlers
     void handleList(const Socket& clientSocket) const;
     void handleGet(const Socket& clientSocket, const std::string& filename) const;
     void handlePut(const Socket& clientSocket, const std::string& filename) const;

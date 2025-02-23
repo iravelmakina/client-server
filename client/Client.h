@@ -21,7 +21,7 @@ private:
 
     void sendCommand(const char* command) const;
 
-    void receiveResponse() const;
+    std::string receiveResponse() const;
 
     void downloadFile(const std::string& filename) const;
 
