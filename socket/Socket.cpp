@@ -7,12 +7,12 @@
 #include <cstdio>
 
 
-Socket::Socket() : _socketfd(-1) {}
+Socket::Socket(const int socketFd) : _socketFd(socketFd) {}
 
 
 bool Socket::createS() {
-    _socketfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (_socketfd == -1) {
+    _socketFd = socket(AF_INET, SOCK_STREAM, 0);
+    if (_socketFd == -1) {
         perror("Error creating socket");
         return false;
     }
@@ -21,8 +21,8 @@ bool Socket::createS() {
 
 
 void Socket::closeS() const {
-    if (_socketfd != -1) {
-        close(_socketfd);
+    if (_socketFd != -1) {
+        close(_socketFd);
     }
 }
 
@@ -33,7 +33,7 @@ bool Socket::bindS(int port) const {
     serverAddr.sin_addr.s_addr = INADDR_ANY;
     serverAddr.sin_port = htons(port);
 
-    if (bind(_socketfd, reinterpret_cast<struct sockaddr*>(&serverAddr), sizeof(serverAddr)) == -1) {
+    if (bind(_socketFd, reinterpret_cast<sockaddr*>(&serverAddr), sizeof(serverAddr)) == -1) {
         perror("Bind failed");
         return false;
     }
@@ -42,7 +42,7 @@ bool Socket::bindS(int port) const {
 
 
 bool Socket::listenS(const int backlog) const {
-    if (listen(_socketfd, backlog) == -1) {
+    if (listen(_socketFd, backlog) == -1) {
         perror("Listen failed");
         return false;
     }
@@ -51,7 +51,7 @@ bool Socket::listenS(const int backlog) const {
 
 
 int Socket::acceptS(sockaddr_in* clientAddr, socklen_t* clientLen) const {
-    const int clientSocket = accept(_socketfd,
+    const int clientSocket = accept(_socketFd,
                                     reinterpret_cast<struct sockaddr*>(clientAddr),
                                     clientLen);
     if (clientSocket == -1) {
@@ -68,8 +68,8 @@ bool Socket::connectS(const char* serverIp, int port) const {
     serverAddr.sin_port = htons(port);
     inet_pton(AF_INET, serverIp, &serverAddr.sin_addr);
 
-    if (connect(_socketfd,
-                reinterpret_cast<struct sockaddr*>(&serverAddr),
+    if (connect(_socketFd,
+                reinterpret_cast<sockaddr*>(&serverAddr),
                 sizeof(serverAddr)) == -1) {
         perror("Connect failed");
         return false;
@@ -78,18 +78,21 @@ bool Socket::connectS(const char* serverIp, int port) const {
 }
 
 
-ssize_t Socket::sendData(const char* data) const {
-    return send(_socketfd, data, strlen(data), 0);
+ssize_t Socket::sendData(const char* data, size_t dataLen) const {
+    if (dataLen == std::string::npos) {
+        dataLen = strlen(data);
+    }
+    return send(_socketFd, data, dataLen, 0);
 }
 
 
-ssize_t Socket::receiveData(char* buffer, const size_t bufferSize) const {
-    const ssize_t bytesReceived =  recv(_socketfd, buffer, bufferSize - 1, 0);
+ssize_t Socket::receiveData(char* data, const size_t dataLen) const {
+    const ssize_t bytesReceived = recv(_socketFd, data, dataLen - 1, 0);
     return bytesReceived;
 }
 
 
-int Socket::getS() const { return _socketfd; }
+int Socket::getS() const { return _socketFd; }
 
 
-void Socket::setS(const int s) { _socketfd = s; }
+void Socket::setS(const int s) { _socketFd = s; }

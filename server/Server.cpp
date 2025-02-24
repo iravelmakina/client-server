@@ -53,10 +53,11 @@ Socket Server::acceptClient() const {
     std::cout << "Waiting for a client to connect..." << std::endl;
 
     int clientfd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
-    Socket clientSocket;
-    clientSocket.setS(clientfd);
 
-    std::cout << "Client connected!" << std::endl;
+    const Socket clientSocket(clientfd);
+    std::cout << "Client connected" << std::endl;
+    clientSocket.sendData("CONNECTED_OK");
+
     return clientSocket;
 }
 
@@ -96,7 +97,6 @@ void Server::handleClient(const Socket& clientSocket) const {
 void Server::handleGet(const Socket& clientSocket, const std::string& filename) const {
     const std::string filePath = _directory + filename;
     const int fileFd = open(filePath.c_str(), O_RDONLY);
-
     if (fileFd == -1) {
         clientSocket.sendData("404 NOT_FOUND File Not Found.");
         return;
@@ -118,7 +118,7 @@ void Server::handleGet(const Socket& clientSocket, const std::string& filename) 
 
     clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
     if (std::string(ackBuffer) != "ACK") {
-        std::cout << "Client did not acknowledge file size\n";
+        std::cout << "Client did not acknowledge file size";
         return;
     }
 
@@ -126,10 +126,10 @@ void Server::handleGet(const Socket& clientSocket, const std::string& filename) 
     ssize_t bytesRead;
 
     while ((bytesRead = read(fileFd, buffer, sizeof(buffer))) > 0) {
-        send(clientSocket.getS(), buffer, bytesRead, 0);
-    } // correct
+        clientSocket.sendData(buffer, bytesRead);
+    }
+
     close(fileFd);
-    std::cout << "File sent successfully: " << filename << std::endl;
 }
 
 
@@ -143,7 +143,8 @@ void Server::handlePut(const Socket& clientSocket, const std::string &filename) 
     clientSocket.sendData("200 OK");
 
     uint32_t fileSize;
-    clientSocket.receiveData(fileSize);
+    clientSocket.receiveData(fileSize); // error
+
     clientSocket.sendData("ACK");
 
     char buffer[1024];
@@ -169,8 +170,6 @@ void Server::handleList(const Socket& clientSocket) const {
 
     dirent* entry;
     std::ostringstream fileListStream;
-
-
     while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_type == DT_REG) {
             fileListStream << entry->d_name << "\n";
@@ -178,7 +177,7 @@ void Server::handleList(const Socket& clientSocket) const {
     }
 
     closedir(dir);
-    clientSocket.sendData((fileListStream.str()).c_str());
+    clientSocket.sendData(fileListStream.str().c_str());
 }
 
 
@@ -208,8 +207,8 @@ void Server::handleInfo(const Socket& clientSocket, const std::string& filename)
             metadataStream << "Last Modified: " << ctime(&fileStat.st_mtime);
             metadataStream << "Last Accessed: " << ctime(&fileStat.st_atime);
             metadataStream << "Creation Time: " << ctime(&fileStat.st_birthtime);
-            metadataStream << "Permissions: " << getFilePermissions(fileStat.st_mode) << "\n";
-            clientSocket.sendData((metadataStream.str()).c_str());
+            metadataStream << "Permissions: " << getFilePermissions(fileStat.st_mode);
+            clientSocket.sendData(metadataStream.str().c_str());
         } else {
             clientSocket.sendData("500 SERVER_ERROR Unable to retrieve file info.");
         }
@@ -236,3 +235,4 @@ std::string Server::getFilePermissions(const mode_t mode) {
 
     return permissions.str();
 }
+// perrors

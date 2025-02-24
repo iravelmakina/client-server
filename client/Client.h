@@ -17,13 +17,11 @@ public:
     void getFileInfo(const std::string& filename) const;
 
 private:
-    Socket clientSocket;
-
-    void sendCommand(const char* command) const;
+    Socket _socket;
 
     std::string receiveResponse() const;
 
     void downloadFile(const std::string& filename) const;
 
-    void uploadFile(const std::string& filename) const;
+    void uploadFile(const std::string& filename, int fileFd) const;
 };
