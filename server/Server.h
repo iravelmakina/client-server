@@ -1,22 +1,20 @@
 #pragma once
 
-#include <string>
-
 #include "Socket.h"
+
 
 class Server {
 public:
-    explicit Server(const std::string& directory);
+    explicit Server(const std::string &directory);
 
     void start(int port);
-
     void stop() const;
 
-    void handleList(const Socket& clientSocket) const;
-    void handleGet(const Socket& clientSocket, const std::string& filename) const;
-    void handlePut(const Socket& clientSocket, const std::string& filename) const;
-    void handleDelete(const Socket& clientSocket, const std::string& filename) const;
-    void handleInfo(const Socket& clientSocket, const std::string& filename) const;
+    void handleList(const Socket &clientSocket) const;
+    void handleGet(const Socket &clientSocket, const std::string &filename) const;
+    void handlePut(const Socket &clientSocket, const std::string &filename) const;
+    void handleDelete(const Socket &clientSocket, const std::string &filename) const;
+    void handleInfo(const Socket &clientSocket, const std::string &filename) const;
 
 private:
     Socket _serverSocket;

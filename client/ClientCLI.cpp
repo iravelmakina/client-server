@@ -63,7 +63,7 @@ void ClientCLI::run(const char *serverIp, const int port) {
             break;
         } else {
             std::cout <<
-                    "Invalid command. Type 'LIST', 'GET <filename>', 'PUT <filename>', 'INFO <filename>', 'DELETE <filename>', or 'EXIT'.";
+                    "Invalid command. Type 'LIST', 'GET <filename>', 'PUT <filename>', 'INFO <filename>', 'DELETE <filename>', or 'EXIT'." << std::endl;
         }
     }
 }

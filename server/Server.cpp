@@ -2,15 +2,15 @@
 #include "Server.h"
 
 #include <iostream>
-#include <thread>
-
+#include <sstream>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <sys/fcntl.h>
 
 
-Server::Server(const std::string& directory) : _directory(directory) {}
+Server::Server(const std::string &directory) : _directory(directory) {
+}
 
 
 void Server::start(const int port) {
@@ -40,8 +40,6 @@ void Server::run() const {
             handleClient(clientSocket);
             clientSocket.closeS();
             std::cout << "Client disconnected." << std::endl;
-        } else {
-            std::this_thread::sleep_for(std::chrono::seconds(5));
         }
     }
 }
@@ -50,21 +48,21 @@ void Server::run() const {
 Socket Server::acceptClient() const {
     sockaddr_in clientAddr{};
     socklen_t clientAddrLen = sizeof(clientAddr);
-    std::cout << "Waiting for a client to connect..." << std::endl;
+    std::cout << "\nWaiting for a client to connect..." << std::endl;
 
     int clientfd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
 
     const Socket clientSocket(clientfd);
     std::cout << "Client connected" << std::endl;
-    clientSocket.sendData("CONNECTED_OK");
+    clientSocket.sendData("200 OK");
 
     return clientSocket;
 }
 
 
-void Server::handleClient(const Socket& clientSocket) const {
+void Server::handleClient(const Socket &clientSocket) const {
     while (true) {
-        char buffer[1024] = {};
+        char buffer[512] = {};
         const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer) - 1);
 
         if (bytesReceived <= 0) {
@@ -85,7 +83,6 @@ void Server::handleClient(const Socket& clientSocket) const {
         } else if (command.find("INFO") == 0) {
             handleInfo(clientSocket, command.substr(5));
         } else if (command == "EXIT") {
-            clientSocket.sendData("Goodbye!");
             break;
         } else {
             clientSocket.sendData("400 BAD_REQUEST Invalid command.");
@@ -94,20 +91,21 @@ void Server::handleClient(const Socket& clientSocket) const {
 } // validation of len
 
 
-void Server::handleGet(const Socket& clientSocket, const std::string& filename) const {
+void Server::handleGet(const Socket &clientSocket, const std::string &filename) const {
     const std::string filePath = _directory + filename;
     const int fileFd = open(filePath.c_str(), O_RDONLY);
     if (fileFd == -1) {
-        clientSocket.sendData("404 NOT_FOUND File Not Found.");
+        perror("open");
+        clientSocket.sendData("404 NOT FOUND: File does not exist.");
         return;
     }
 
     clientSocket.sendData("200 OK");
 
-    char ackBuffer[16] = {};
+    char ackBuffer[32] = {};
     clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
     if (std::string(ackBuffer) != "ACK") {
-        std::cout << "Client did not acknowledge 200 OK\n";
+        std::cerr << "Client did not acknowledge 200 OK" << std::endl;
         return;
     }
 
@@ -118,7 +116,7 @@ void Server::handleGet(const Socket& clientSocket, const std::string& filename) 
 
     clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
     if (std::string(ackBuffer) != "ACK") {
-        std::cout << "Client did not acknowledge file size";
+        std::cerr << "Client did not acknowledge file size" << std::endl;
         return;
     }
 
@@ -133,17 +131,21 @@ void Server::handleGet(const Socket& clientSocket, const std::string& filename) 
 }
 
 
-void Server::handlePut(const Socket& clientSocket, const std::string &filename) const {
+void Server::handlePut(const Socket &clientSocket, const std::string &filename) const {
     const int fileFd = open((_directory + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fileFd == -1) {
-        clientSocket.sendData("500 SERVER_ERROR Unable to create file.");
+        perror("open");
+        clientSocket.sendData("500 SERVER ERROR: Unable to create file.");
         return;
     }
 
     clientSocket.sendData("200 OK");
 
-    uint32_t fileSize;
-    clientSocket.receiveData(fileSize); // error
+    uint32_t fileSize{};
+    if (clientSocket.receiveData(fileSize) <= 0) {
+        std::cerr << "Failed to receive file size." << std::endl;
+        return;
+    }
 
     clientSocket.sendData("ACK");
 
@@ -161,14 +163,15 @@ void Server::handlePut(const Socket& clientSocket, const std::string &filename) 
 }
 
 
-void Server::handleList(const Socket& clientSocket) const {
-    DIR* dir = opendir(_directory.c_str());
+void Server::handleList(const Socket &clientSocket) const {
+    DIR *dir = opendir(_directory.c_str());
     if (!dir) {
-        clientSocket.sendData("500 SERVER_ERROR Failed to open directory.");
+        perror("opendir");
+        clientSocket.sendData("500 SERVER ERROR: Failed to open directory.");
         return;
     }
 
-    dirent* entry;
+    dirent *entry;
     std::ostringstream fileListStream;
     while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_type == DT_REG) {
@@ -181,22 +184,24 @@ void Server::handleList(const Socket& clientSocket) const {
 }
 
 
-void Server::handleDelete(const Socket& clientSocket, const std::string& filename) const {
+void Server::handleDelete(const Socket &clientSocket, const std::string &filename) const {
     const std::string filePath = _directory + filename;
 
     if (access(filePath.c_str(), F_OK) == 0) {
         if (unlink(filePath.c_str()) == 0) {
-            clientSocket.sendData("File deleted successfully.");
+            clientSocket.sendData("200 OK");
         } else {
-            clientSocket.sendData("500 SERVER_ERROR Could not delete file.");
+            perror("unlink");
+            clientSocket.sendData("500 SERVER ERROR: Unable to delete file.");
         }
     } else {
-        clientSocket.sendData("404 NOT_FOUND File does not exist.");
+        perror("access");
+        clientSocket.sendData("404 NOT FOUND: File does not exist.");
     }
 }
 
 
-void Server::handleInfo(const Socket& clientSocket, const std::string& filename) const {
+void Server::handleInfo(const Socket &clientSocket, const std::string &filename) const {
     const std::string filePath = _directory + filename;
     struct stat fileStat;
 
@@ -210,10 +215,12 @@ void Server::handleInfo(const Socket& clientSocket, const std::string& filename)
             metadataStream << "Permissions: " << getFilePermissions(fileStat.st_mode);
             clientSocket.sendData(metadataStream.str().c_str());
         } else {
-            clientSocket.sendData("500 SERVER_ERROR Unable to retrieve file info.");
+            perror("stat");
+            clientSocket.sendData("500 SERVER ERROR: Unable to retrieve file info.");
         }
     } else {
-        clientSocket.sendData("404 NOT_FOUND File does not exist.");
+        perror("access");
+        clientSocket.sendData("404 NOT FOUND: File does not exist.");
     }
 }
 
@@ -235,4 +242,5 @@ std::string Server::getFilePermissions(const mode_t mode) {
 
     return permissions.str();
 }
-// perrors
+
+// errors
