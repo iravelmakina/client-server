@@ -1,22 +1,10 @@
 #include "Client.h"
 #include <iostream>
 
+#include "ClientCLI.h"
+
 int main() {
-    Client client;
-    client.connect("127.0.0.1", 8080);
-
-    std::string command;
-    while (true) {
-        std::cout << "\nEnter a command: ";
-        std::getline(std::cin, command);
-
-        if (command == "exit") {
-            client.disconnect();
-            break;
-        }
-
-        client.sendCommand(command.c_str());
-        client.receiveResponse();
-    }
+    ClientCLI cli;
+    cli.run("127.0.0.1", 9080);
     return 0;
 }

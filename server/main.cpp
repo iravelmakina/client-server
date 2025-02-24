@@ -2,7 +2,7 @@
 
 
 int main() {
-    Server server;
-    server.start(8080);
+    Server server("files/");
+    server.start(9080);
     return 0;
 }
