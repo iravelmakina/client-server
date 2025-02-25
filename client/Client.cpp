@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 
 
-void Client::connect(const char* serverIp, const int port) {
+void Client::connect(const char *serverIp, const int port) {
     if (!_socket.createS()) {
         return;
     }
@@ -17,7 +17,7 @@ void Client::connect(const char* serverIp, const int port) {
         return;
     }
 
-    if (receiveResponse().find("CONNECTED_OK") != 0) {
+    if (receiveResponse().find("200 OK") != 0) {
         return;
     }
 
@@ -34,29 +34,35 @@ void Client::disconnect() const {
 std::string Client::receiveResponse() const {
     char buffer[512] = {};
     const ssize_t bytesReceived = _socket.receiveData(buffer, sizeof(buffer) - 1);
-    if (bytesReceived > 0) {
-        return {buffer};
+    if (bytesReceived <= 0) {
+        std::cerr << "Warning: No response from server." << std::endl;
+        return "";
     }
-    std::cout << "No response from server." << std::endl;
-    return "";
+    return {buffer};
 }
 
 
 void Client::downloadFile(const std::string &filename) const {
-    if (receiveResponse().find("200 OK") != 0) {
+    const std::string response = receiveResponse();
+    if (response.find("200 OK") != 0) {
+        std::cout << response << std::endl;
         return;
     }
 
     _socket.sendData("ACK");
 
-    uint32_t fileSize;
-    _socket.receiveData(fileSize); // error
+    uint32_t fileSize{};
+    if (_socket.receiveData(fileSize) <= 0) {
+        std::cerr << "Error: Failed to receive file size." << std::endl;
+        return;
+    }
 
     _socket.sendData("ACK");
 
-    const int fileFd = open(("../../client/files/" + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    const int fileFd = open(("files/" + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fileFd == -1) {
         perror("open");
+        std::cerr << "Error: Unable to create file." << std::endl;
         return;
     }
 
@@ -75,7 +81,9 @@ void Client::downloadFile(const std::string &filename) const {
 
 
 void Client::uploadFile(const std::string &filename, const int fileFd) const {
-    if (receiveResponse().find("200 OK") != 0) {
+    const std::string response = receiveResponse();
+    if (response.find("200 OK") != 0) {
+        std::cout << response << std::endl;
         return;
     }
 
@@ -85,7 +93,7 @@ void Client::uploadFile(const std::string &filename, const int fileFd) const {
     _socket.sendData(fileSize);
 
     if (receiveResponse().find("ACK") != 0) {
-        std::cout << "Error: Server did not acknowledge file size.\n";
+        std::cerr << "Error: Server did not acknowledge file size." << std::endl;
         close(fileFd);
         return;
     }
@@ -102,45 +110,47 @@ void Client::uploadFile(const std::string &filename, const int fileFd) const {
     if (receiveResponse().find("200 OK") == 0) {
         std::cout << "Upload complete: " << filename << std::endl;
     } else {
-        std::cout << "Error: Upload failed." << std::endl;
+        std::cerr << "Error: Upload failed." << std::endl;
     }
 }
 
 
 void Client::listFiles() const {
     _socket.sendData("LIST");
-    std::cout << "\n" << receiveResponse();
+    std::cout << receiveResponse();
 }
 
 
-void Client::getFile(const std::string& filename) const {
+void Client::getFile(const std::string &filename) const {
     _socket.sendData(("GET " + filename).c_str());
-    std::cout << std::endl;
     downloadFile(filename);
 }
 
 
-void Client::putFile(const std::string& filename) const {
-    const int fileFd = open(("../../client/files/" + filename).c_str(), O_RDONLY);
+void Client::putFile(const std::string &filename) const {
+    const int fileFd = open(("files/" + filename).c_str(), O_RDONLY);
     if (fileFd == -1) {
-        std::cout << "Error: File not found on client: " << filename << std::endl;
+        std::cout << "Error: File not found on client." << std::endl;
         return;
     }
     _socket.sendData(("PUT " + filename).c_str());
-    std::cout << std::endl;
     uploadFile(filename, fileFd);
 }
 
 
-void Client::deleteFile(const std::string& filename) const {
-    _socket.sendData(("DELETE " + filename).c_str());;
-    std::cout << "\n" << receiveResponse() << std::endl;
+void Client::deleteFile(const std::string &filename) const {
+    _socket.sendData(("DELETE " + filename).c_str());
+
+    const std::string response = receiveResponse();
+    if (response.find("200 OK") == 0) {
+        std::cout << "Deleted file: " << filename << std::endl;
+    } else {
+        std::cout << response << std::endl;
+    }
 }
 
 
-void Client::getFileInfo(const std::string& filename) const {
+void Client::getFileInfo(const std::string &filename) const {
     _socket.sendData(("INFO " + filename).c_str());
-    std::cout << "\n" << receiveResponse() << std::endl;
+    std::cout << receiveResponse() << std::endl;
 }
-
-// overload method

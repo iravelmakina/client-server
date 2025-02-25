@@ -88,7 +88,7 @@ void Server::handleClient(const Socket &clientSocket) const {
             clientSocket.sendData("400 BAD_REQUEST Invalid command.");
         }
     }
-} // validation of len
+}
 
 
 void Server::handleGet(const Socket &clientSocket, const std::string &filename) const {
@@ -242,5 +242,3 @@ std::string Server::getFilePermissions(const mode_t mode) {
 
     return permissions.str();
 }
-
-// errors
