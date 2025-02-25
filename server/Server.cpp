@@ -53,7 +53,7 @@ Socket Server::acceptClient() const {
     int clientfd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
 
     const Socket clientSocket(clientfd);
-    std::cout << "Client connected" << std::endl;
+    std::cout << "Client connected." << std::endl;
     clientSocket.sendData("200 OK");
 
     return clientSocket;
@@ -105,7 +105,7 @@ void Server::handleGet(const Socket &clientSocket, const std::string &filename) 
     char ackBuffer[32] = {};
     clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
     if (std::string(ackBuffer) != "ACK") {
-        std::cerr << "Client did not acknowledge 200 OK" << std::endl;
+        std::cout << "\033[31m" << "Client did not acknowledge 200 OK." << "\033[0m" << std::endl;
         return;
     }
 
@@ -116,7 +116,7 @@ void Server::handleGet(const Socket &clientSocket, const std::string &filename) 
 
     clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
     if (std::string(ackBuffer) != "ACK") {
-        std::cerr << "Client did not acknowledge file size" << std::endl;
+        std::cout << "\033[31m" << "Client did not acknowledge file size." << "\033[0m" << std::endl;
         return;
     }
 
@@ -143,7 +143,7 @@ void Server::handlePut(const Socket &clientSocket, const std::string &filename) 
 
     uint32_t fileSize{};
     if (clientSocket.receiveData(fileSize) <= 0) {
-        std::cerr << "Failed to receive file size." << std::endl;
+        std::cout << "\033[31m" << "Failed to receive file size." << "\033[0m" << std::endl;
         return;
     }
 
