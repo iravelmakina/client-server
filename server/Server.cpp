@@ -1,4 +1,3 @@
-// ReSharper disable CppExpressionWithoutSideEffects
 #include "Server.h"
 
 #include <iostream>
@@ -9,8 +8,7 @@
 #include <sys/fcntl.h>
 
 
-Server::Server(const std::string &directory) : _directory(directory) {
-}
+Server::Server(const std::string &directory) : _directory(directory) {}
 
 
 void Server::start(const int port) {
@@ -27,7 +25,7 @@ void Server::start(const int port) {
 }
 
 
-void Server::stop() const {
+void Server::stop() {
     _serverSocket.closeS();
     std::cout << "Server stopped." << std::endl;
 }
@@ -50,9 +48,9 @@ Socket Server::acceptClient() const {
     socklen_t clientAddrLen = sizeof(clientAddr);
     std::cout << "\nWaiting for a client to connect..." << std::endl;
 
-    int clientfd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
+    const int clientFd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
 
-    const Socket clientSocket(clientfd);
+    const Socket clientSocket(clientFd);
     std::cout << "Client connected." << std::endl;
     clientSocket.sendData("200 OK");
 
@@ -63,7 +61,7 @@ Socket Server::acceptClient() const {
 void Server::handleClient(const Socket &clientSocket) const {
     while (true) {
         char buffer[512] = {};
-        const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer) - 1);
+        const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
 
         if (bytesReceived <= 0) {
             break;
@@ -109,24 +107,12 @@ void Server::handleGet(const Socket &clientSocket, const std::string &filename) 
         return;
     }
 
-    struct stat fileStat{};
-    fstat(fileFd, &fileStat);
-    const uint32_t fileSize = fileStat.st_size;
-    clientSocket.sendData(fileSize);
-
-    clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
-    if (std::string(ackBuffer) != "ACK") {
-        std::cout << "\033[31m" << "Client did not acknowledge file size." << "\033[0m" << std::endl;
-        return;
-    }
-
     char buffer[1024];
     ssize_t bytesRead;
-
     while ((bytesRead = read(fileFd, buffer, sizeof(buffer))) > 0) {
         clientSocket.sendData(buffer, bytesRead);
     }
-
+    clientSocket.sendData("", 0);
     close(fileFd);
 }
 
@@ -141,21 +127,10 @@ void Server::handlePut(const Socket &clientSocket, const std::string &filename) 
 
     clientSocket.sendData("200 OK");
 
-    uint32_t fileSize{};
-    if (clientSocket.receiveData(fileSize) <= 0) {
-        std::cout << "\033[31m" << "Failed to receive file size." << "\033[0m" << std::endl;
-        return;
-    }
-
-    clientSocket.sendData("ACK");
-
     char buffer[1024];
     ssize_t bytesReceived;
-    size_t totalReceived = 0;
-
-    while (totalReceived < fileSize && (bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer))) > 0) {
+    while ((bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer))) > 0) {
         write(fileFd, buffer, bytesReceived);
-        totalReceived += bytesReceived;
     }
 
     close(fileFd);
@@ -173,14 +148,27 @@ void Server::handleList(const Socket &clientSocket) const {
 
     dirent *entry;
     std::ostringstream fileListStream;
+    bool firstEntry = true;
+    bool filesFound = false;
+
     while ((entry = readdir(dir)) != nullptr) {
         if (entry->d_type == DT_REG) {
-            fileListStream << entry->d_name << "\n";
+            if (!firstEntry) {
+                fileListStream << "\n";
+            }
+            fileListStream << entry->d_name;
+            firstEntry = false;
+            filesFound = true;
         }
     }
 
     closedir(dir);
-    clientSocket.sendData(fileListStream.str().c_str());
+
+    if (!filesFound) {
+        clientSocket.sendData("204 NO CONTENT: The directory is empty.");
+    } else {
+        clientSocket.sendData(fileListStream.str().c_str());
+    }
 }
 
 

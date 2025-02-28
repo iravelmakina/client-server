@@ -8,7 +8,7 @@ public:
     explicit Server(const std::string &directory);
 
     void start(int port);
-    void stop() const;
+    void stop();
 
     void handleList(const Socket &clientSocket) const;
     void handleGet(const Socket &clientSocket, const std::string &filename) const;
