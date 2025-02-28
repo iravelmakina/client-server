@@ -4,20 +4,25 @@
 
 class Client {
 public:
-    void connect(const char *serverIp, int port);
-    void disconnect() const;
+    explicit Client(const std::string &directory);
 
-    void listFiles() const;
-    void getFile(const std::string &filename) const;
-    void putFile(const std::string &filename) const;
-    void deleteFile(const std::string &filename) const;
-    void getFileInfo(const std::string &filename) const;
+    int connect(const char *serverIp, int port);
+    void disconnect();
+
+    bool isConnected() const;
+
+    void listFiles();
+    void getFile(const std::string &filename);
+    void putFile(const std::string &filename);
+    void deleteFile(const std::string &filename);
+    void getFileInfo(const std::string &filename);
 
 private:
     Socket _socket;
+    const std::string _directory;
 
-    std::string receiveResponse() const;
+    std::string receiveResponse();
 
-    void downloadFile(const std::string &filename) const;
-    void uploadFile(const std::string &filename, int fileFd) const;
+    void downloadFile(const std::string &filename);
+    void uploadFile(const std::string &filename, int fileFd);
 };
