@@ -10,7 +10,7 @@ public:
 
 
     bool createS();
-    void closeS() const;
+    void closeS();
 
 
     bool bindS(int port) const;
@@ -21,19 +21,8 @@ public:
     bool connectS(const char *serverIp, int port) const;
 
 
-    template<typename T>
-    ssize_t sendData(const T &data) const {
-        return send(_socketFd, &data, sizeof(T), 0);
-    }
-
-    template<typename T>
-    ssize_t receiveData(T &data) const {
-        return recv(_socketFd, &data, sizeof(T), MSG_WAITALL);
-    }
-
-
     ssize_t sendData(const char *data, size_t dataLen = std::string::npos) const;
-    ssize_t receiveData(char *data, size_t dataLen) const;
+    ssize_t receiveData(char *buffer, size_t bufferSize) const;
 
 
     int getS() const;

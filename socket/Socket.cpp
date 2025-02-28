@@ -1,5 +1,7 @@
 #include "Socket.h"
 
+#include <iostream>
+#include <stdnoreturn.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 
@@ -18,10 +20,11 @@ bool Socket::createS() {
 }
 
 
-void Socket::closeS() const {
+void Socket::closeS() {
     if (_socketFd != -1) {
         close(_socketFd);
     }
+    _socketFd = -1;
 }
 
 
@@ -80,13 +83,35 @@ ssize_t Socket::sendData(const char *data, size_t dataLen) const {
     if (dataLen == std::string::npos) {
         dataLen = strlen(data);
     }
+
+    if (dataLen > UINT32_MAX) {
+        return -1; // data too large to send
+    }
+
+    const uint32_t netDataLen = htonl(static_cast<uint32_t>(dataLen));
+    const ssize_t sentBytes = send(_socketFd, &netDataLen, sizeof(netDataLen), 0);
+    if (sentBytes != sizeof(netDataLen)) {
+        return -1; // failed to send complete length prefix
+    }
+
     return send(_socketFd, data, dataLen, 0);
 }
 
 
-ssize_t Socket::receiveData(char *data, const size_t dataLen) const {
-    const ssize_t bytesReceived = recv(_socketFd, data, dataLen - 1, 0);
-    return bytesReceived;
+ssize_t Socket::receiveData(char *buffer, const size_t bufferSize) const {
+    uint32_t netDataLen;
+    const ssize_t receivedBytes = recv(_socketFd, &netDataLen, sizeof(netDataLen), MSG_WAITALL);
+    if (receivedBytes != sizeof(netDataLen)) {
+        return -1; // failed to receive complete length prefix
+    }
+
+    const uint32_t dataLen = ntohl(netDataLen);
+
+    if (dataLen > bufferSize) {
+        return -1; // buffer is too small for incoming data
+    }
+
+    return recv(_socketFd, buffer, dataLen, MSG_WAITALL);
 }
 
 
