@@ -27,4 +27,6 @@ private:
     void handleClient(const Socket &clientSocket) const;
 
     static std::string getFilePermissions(mode_t mode);
+
+    static bool isValidFilename(const Socket &clientSocket, const std::string &filename);
 };

@@ -8,7 +8,8 @@
 #include <sys/fcntl.h>
 
 
-Server::Server(const std::string &directory) : _directory(directory) {}
+Server::Server(const std::string &directory) : _directory(directory) {
+}
 
 
 void Server::start(const int port) {
@@ -71,19 +72,31 @@ void Server::handleClient(const Socket &clientSocket) const {
         std::cout << "Received command: " << command << std::endl;
 
         if (command.find("GET") == 0) {
+            if (!isValidFilename(clientSocket, command.substr(4))) {
+                continue;
+            }
             handleGet(clientSocket, command.substr(4));
-        } else if (command.find("LIST") == 0) {
+        } else if (command == "LIST") {
             handleList(clientSocket);
         } else if (command.find("PUT") == 0) {
+            if (!isValidFilename(clientSocket, command.substr(4))) {
+                continue;
+            }
             handlePut(clientSocket, command.substr(4));
         } else if (command.find("DELETE") == 0) {
+            if (!isValidFilename(clientSocket, command.substr(7))) {
+                continue;
+            }
             handleDelete(clientSocket, command.substr(7));
         } else if (command.find("INFO") == 0) {
+            if (!isValidFilename(clientSocket, command.substr(5))) {
+                continue;
+            }
             handleInfo(clientSocket, command.substr(5));
         } else if (command == "EXIT") {
             break;
         } else {
-            clientSocket.sendData("400 BAD_REQUEST Invalid command.");
+            clientSocket.sendData("400 BAD REQUEST: Invalid command.");
         }
     }
 }
@@ -229,4 +242,13 @@ std::string Server::getFilePermissions(const mode_t mode) {
     permissions << ((mode & S_IXOTH) ? "x" : "-");
 
     return permissions.str();
+}
+
+
+bool Server::isValidFilename(const Socket &clientSocket, const std::string &filename) {
+    if (filename.empty() || filename == "." || filename.find('/') != std::string::npos || filename.find('\\') != std::string::npos) {
+        clientSocket.sendData("400 BAD REQUEST: Invalid filename.");
+        return false;
+    }
+    return true;
 }
