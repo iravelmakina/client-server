@@ -20,7 +20,7 @@ int Client::connect(const char *serverIp, const int port) {
         return -1;
     }
 
-    if (receiveResponse().find("200 OK") != 0) {
+    if (receiveResponse() != RESPONSE_OK) {
         return -1;
     }
 
@@ -42,10 +42,10 @@ bool Client::isConnected() const {
 
 
 std::string Client::receiveResponse() {
-    char buffer[512] = {};
+    char buffer[MESSAGE_SIZE] = {};
     const ssize_t bytesReceived = _socket.receiveData(buffer, sizeof(buffer));
     if (bytesReceived <= 0) {
-        std::cout << "\033[31m" << "Warning: No response from server. Closing socket." << "\033[0m" << std::endl;
+            std::cout << "\033[31m" << "Error: No response from server. Closing socket." << "\033[0m" << std::endl;
         _socket.closeS();
         return "";
     }
@@ -55,21 +55,20 @@ std::string Client::receiveResponse() {
 
 void Client::downloadFile(const std::string &filename) {
     const std::string response = receiveResponse();
-    if (response != "200 OK") {
+    if (response != RESPONSE_OK) {
         std::cout << response << std::endl;
         return;
     }
 
-    _socket.sendData("ACK");
+    _socket.sendData(RESPONSE_ACK.c_str());
 
     const int fileFd = open((_directory + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fileFd == -1) {
-        perror("open");
         std::cout << "\033[31m" << "Error: Unable to create file." << "\033[0m" << std::endl;
         return;
     }
 
-    char buffer[1024];
+    char buffer[FILE_BUFFER_SIZE];
     ssize_t bytesReceived;
     while ((bytesReceived = _socket.receiveData(buffer, sizeof(buffer))) > 0) {
         write(fileFd, buffer, bytesReceived);
@@ -82,12 +81,12 @@ void Client::downloadFile(const std::string &filename) {
 
 void Client::uploadFile(const std::string &filename, const int fileFd) {
     const std::string response = receiveResponse();
-    if (response != "200 OK") {
+    if (response != RESPONSE_OK) {
         std::cout << response << std::endl;
         return;
     }
 
-    char buffer[1024];
+    char buffer[FILE_BUFFER_SIZE];
     ssize_t bytesRead;
     while ((bytesRead = read(fileFd, buffer, sizeof(buffer))) > 0) {
         _socket.sendData(buffer, bytesRead);
@@ -96,7 +95,7 @@ void Client::uploadFile(const std::string &filename, const int fileFd) {
     _socket.sendData("", 0);
     close(fileFd);
 
-    if (receiveResponse() == "200 OK") {
+    if (receiveResponse() == RESPONSE_OK) {
         std::cout << "Upload complete: " << filename << std::endl;
     } else {
         std::cout << "\033[31m" << "Error: Upload failed." << "\033[0m" << std::endl;
@@ -131,7 +130,7 @@ void Client::deleteFile(const std::string &filename) {
     _socket.sendData(("DELETE " + filename).c_str());
 
     const std::string response = receiveResponse();
-    if (response == "200 OK") {
+    if (response == RESPONSE_OK) {
         std::cout << "Delete complete." << std::endl;
     } else {
         std::cout << response << std::endl;

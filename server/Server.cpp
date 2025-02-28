@@ -53,7 +53,7 @@ Socket Server::acceptClient() const {
 
     const Socket clientSocket(clientFd);
     std::cout << "Client connected." << std::endl;
-    clientSocket.sendData("200 OK");
+    clientSocket.sendData(RESPONSE_OK.c_str());
 
     return clientSocket;
 }
@@ -61,7 +61,7 @@ Socket Server::acceptClient() const {
 
 void Server::handleClient(const Socket &clientSocket) const {
     while (true) {
-        char buffer[512] = {};
+        char buffer[MESSAGE_SIZE] = {};
         const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
 
         if (bytesReceived <= 0) {
@@ -111,16 +111,16 @@ void Server::handleGet(const Socket &clientSocket, const std::string &filename) 
         return;
     }
 
-    clientSocket.sendData("200 OK");
+    clientSocket.sendData(RESPONSE_OK.c_str());
 
     char ackBuffer[32] = {};
     clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
-    if (std::string(ackBuffer) != "ACK") {
+    if (std::string(ackBuffer) != RESPONSE_ACK) {
         std::cout << "\033[31m" << "Client did not acknowledge 200 OK." << "\033[0m" << std::endl;
         return;
     }
 
-    char buffer[1024];
+    char buffer[FILE_BUFFER_SIZE];
     ssize_t bytesRead;
     while ((bytesRead = read(fileFd, buffer, sizeof(buffer))) > 0) {
         clientSocket.sendData(buffer, bytesRead);
@@ -138,16 +138,16 @@ void Server::handlePut(const Socket &clientSocket, const std::string &filename) 
         return;
     }
 
-    clientSocket.sendData("200 OK");
+    clientSocket.sendData(RESPONSE_OK.c_str());
 
-    char buffer[1024];
+    char buffer[FILE_BUFFER_SIZE];
     ssize_t bytesReceived;
     while ((bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer))) > 0) {
         write(fileFd, buffer, bytesReceived);
     }
 
     close(fileFd);
-    clientSocket.sendData("200 OK");
+    clientSocket.sendData(RESPONSE_OK.c_str());
 }
 
 
@@ -190,7 +190,7 @@ void Server::handleDelete(const Socket &clientSocket, const std::string &filenam
 
     if (access(filePath.c_str(), F_OK) == 0) {
         if (unlink(filePath.c_str()) == 0) {
-            clientSocket.sendData("200 OK");
+            clientSocket.sendData(RESPONSE_OK.c_str());
         } else {
             perror("unlink");
             clientSocket.sendData("500 SERVER ERROR: Unable to delete file.");

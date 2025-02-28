@@ -7,29 +7,6 @@
 ClientCLI::ClientCLI(const std::string &directory) : client(directory) {}
 
 
-void ClientCLI::printMenu() {
-    std::cout << "\n===== Available Commands ===============================\n"
-            << "1. LIST               - List available files on the server\n"
-            << "2. GET <filename>     - Download a file from the server\n"
-            << "3. PUT <filename>     - Upload a file to the server\n"
-            << "4. INFO <filename>    - Get file info from the server\n"
-            << "5. DELETE <filename>  - Delete a file on the server\n"
-            << "6. EXIT               - Disconnect and exit\n"
-            << "=========================================================\n";
-}
-
-
-std::vector<std::string> ClientCLI::parseInput(const std::string &input) {
-    std::istringstream iss(input);
-    std::vector<std::string> tokens;
-    std::string token;
-    while (iss >> token) {
-        tokens.push_back(token);
-    }
-    return tokens;
-}
-
-
 void ClientCLI::run(const char *serverIp, const int port) {
     if (client.connect(serverIp, port) == -1) {
         return;
@@ -49,7 +26,6 @@ void ClientCLI::run(const char *serverIp, const int port) {
         }
 
         const std::string &command = commandParts[0];
-
         if (command == "LIST") {
             client.listFiles();
         } else if (command == "GET" && commandParts.size() == 2) {
@@ -68,4 +44,26 @@ void ClientCLI::run(const char *serverIp, const int port) {
                     "Invalid command. Type 'LIST', 'GET <filename>', 'PUT <filename>', 'INFO <filename>', 'DELETE <filename>', or 'EXIT'." << std::endl;
         }
     }
+}
+
+void ClientCLI::printMenu() {
+    std::cout << "\n===== Available Commands ==================================\n"
+            << "1. LIST               - List available files on the server\n"
+            << "2. GET <filename>     - Download a file from the server\n"
+            << "3. PUT <filename>     - Upload a file to the server\n"
+            << "4. INFO <filename>    - Get file info from the server\n"
+            << "5. DELETE <filename>  - Delete a file on the server\n"
+            << "6. EXIT               - Disconnect and exit\n"
+            << "===========================================================\n";
+}
+
+
+std::vector<std::string> ClientCLI::parseInput(const std::string &input) {
+    std::istringstream iss(input);
+    std::vector<std::string> tokens;
+    std::string token;
+    while (iss >> token) {
+        tokens.push_back(token);
+    }
+    return tokens;
 }
