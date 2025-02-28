@@ -4,7 +4,7 @@
 #include <sstream>
 
 
-ClientCLI::ClientCLI() = default;
+ClientCLI::ClientCLI(const std::string &directory) : client(directory) {}
 
 
 void ClientCLI::printMenu() {
@@ -31,12 +31,14 @@ std::vector<std::string> ClientCLI::parseInput(const std::string &input) {
 
 
 void ClientCLI::run(const char *serverIp, const int port) {
-    client.connect(serverIp, port);
+    if (client.connect(serverIp, port) == -1) {
+        return;
+    }
 
     std::string userInput;
     printMenu();
 
-    while (true) {
+    while (client.isConnected()) {
         std::cout << "\nEnter command: ";
         std::getline(std::cin, userInput);
         std::vector<std::string> commandParts = parseInput(userInput);

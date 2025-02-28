@@ -6,7 +6,7 @@
 
 class ClientCLI {
 public:
-    ClientCLI();
+    explicit ClientCLI(const std::string &directory);
 
     void run(const char *serverIp, int port);
 
