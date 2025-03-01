@@ -4,7 +4,8 @@
 #include <sstream>
 
 
-ClientCLI::ClientCLI(const std::string &directory) : client(directory) {}
+ClientCLI::ClientCLI(const std::string &directory) : client(directory) {
+}
 
 
 void ClientCLI::run(const char *serverIp, const int port) {
@@ -41,7 +42,8 @@ void ClientCLI::run(const char *serverIp, const int port) {
             break;
         } else {
             std::cout <<
-                    "Invalid command. Type 'LIST', 'GET <filename>', 'PUT <filename>', 'INFO <filename>', 'DELETE <filename>', or 'EXIT'." << std::endl;
+                    "Invalid command. Type 'LIST', 'GET <filename>', 'PUT <filename>', 'INFO <filename>', 'DELETE <filename>', or 'EXIT'."
+                    << std::endl;
         }
     }
 }

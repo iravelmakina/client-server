@@ -246,7 +246,8 @@ std::string Server::getFilePermissions(const mode_t mode) {
 
 
 bool Server::isValidFilename(const Socket &clientSocket, const std::string &filename) {
-    if (filename.empty() || filename == "." || filename.find('/') != std::string::npos || filename.find('\\') != std::string::npos) {
+    if (filename.empty() || filename == "." || filename.find('/') != std::string::npos || filename.find('\\') !=
+        std::string::npos) {
         clientSocket.sendData("400 BAD REQUEST: Invalid filename.");
         return false;
     }

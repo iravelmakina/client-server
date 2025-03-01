@@ -1,4 +1,3 @@
-
 #include "Client.h"
 
 #include <iostream>
@@ -7,7 +6,8 @@
 #include <sys/stat.h>
 
 
-Client::Client(const std::string &directory) : _directory(directory) {}
+Client::Client(const std::string &directory) : _directory(directory) {
+}
 
 
 int Client::connect(const char *serverIp, const int port) {
@@ -45,7 +45,7 @@ std::string Client::receiveResponse() {
     char buffer[MESSAGE_SIZE] = {};
     const ssize_t bytesReceived = _socket.receiveData(buffer, sizeof(buffer));
     if (bytesReceived <= 0) {
-            std::cout << "\033[31m" << "Error: No response from server. Closing socket." << "\033[0m" << std::endl;
+        std::cout << "\033[31m" << "Error: No response from server. Closing socket." << "\033[0m" << std::endl;
         _socket.closeS();
         return "";
     }
