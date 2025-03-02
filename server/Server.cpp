@@ -113,7 +113,7 @@ void Server::handleGet(const Socket &clientSocket, const std::string &filename) 
 
     clientSocket.sendData(RESPONSE_OK.c_str());
 
-    char ackBuffer[32] = {};
+    char ackBuffer[3] = {};
     clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
     if (std::string(ackBuffer) != RESPONSE_ACK) {
         std::cout << "\033[31m" << "Client did not acknowledge 200 OK." << "\033[0m" << std::endl;
