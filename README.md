@@ -32,21 +32,40 @@ g++ -std=c++11 -pthread client/Client.cpp client/main.cpp client/ClientCLI.cpp -
 
 #### **Using CMake**
 Alternatively, use CMake for a more structured build process.
-```bash
-mkdir -p build && cd build
-cmake -DCMAKE_CXX_STANDARD=11 ..
-make
-```
+### Summary of Compilation Commands:
 
-### **3. Run the Program**
-Run the server and client executables:
-```bash
-# Start the server
-./server
+1. **Compile Socket Library**:
 
-# Start the client in another terminal
-./client
-```
+   Navigate to the `socket/src` directory and compile the `Socket.cpp` file, then create the static library:
+
+   ```bash
+   cd socket/src
+   g++ -c Socket.cpp -o Socket.o
+   ar rcs libsocket.a Socket.o
+   ```
+
+2. **Compile Server**:
+
+   Navigate to the `server/src` directory, compile the `Server.cpp` and `main.cpp` files, and link them with the static library `libsocket.a`:
+
+   ```bash
+   cd server/src
+   g++ -c Server.cpp -o Server.o
+   g++ -c main.cpp -o main.o
+   g++ Server.o main.o -L../../socket/src -lsocket -o server
+   ```
+
+3. **Compile Client**:
+
+   Navigate to the `client/src` directory, compile the `Client.cpp`, `ClientCLI.cpp`, and `main.cpp` files, and link them with the static library `libsocket.a`:
+
+   ```bash
+   cd client/src
+   g++ -c Client.cpp -o Client.o
+   g++ -c ClientCLI.cpp -o ClientCLI.o
+   g++ -c main.cpp -o main.o
+   g++ Client.o ClientCLI.o main.o -L../../socket/src -lsocket -o client
+   ```
 
 ## Usage
 
@@ -84,27 +103,37 @@ Run the server and client executables:
 ```
 client-server/
 │── socket/                   # Contains all socket-related code
-│   ├── Socket.cpp            # Implementation of the Socket class
-│   ├── Socket.h              # Header file for the Socket class
+│   ├── include/              # Header files for socket library
+│   │   └── Socket.h          # Header file for the Socket class
+│   ├── src/                  # Source files for socket library
+│   │   └── Socket.cpp        # Implementation of the Socket class
 │   ├── CMakeLists.txt        # CMake configuration for socket library
+│
 │── server/                   # Contains the server-side code
-|   │── files/                # Folder containing files for transfer or operations
-│   ├── Server.cpp            # Implementation of the Server class
-│   ├── Server.h              # Header file for the Server class
+│   ├── files/                # Folder containing files for transfer or operations
+│   ├── include/              # Header files for server-side code
+│   │   └── Server.h          # Header file for the Server class
+│   ├── src/                  # Source files for server-side code
+│   │   ├── Server.cpp        # Implementation of the Server class
+│   │   └── main.cpp          # Entry point for the server application
 │   ├── CMakeLists.txt        # CMake configuration for server
-│   ├── main.cpp              # Entry point for the server application
+│
 │── client/                   # Contains the client-side code
-|   │── files/                # Folder containing files for transfer or operations
-│   ├── Client.cpp            # Implementation of the Client class
-│   ├── Client.h              # Header file for the Client class
-│   ├── ClientCLI.cpp         # Implementation of the ClientCLI class (for CLI interface)
-│   ├── ClientCLI.h           # Header file for the ClientCLI class
+│   ├── files/                # Folder containing files for transfer or operations
+│   ├── include/              # Header files for client-side code
+│   │   ├── Client.h          # Header file for the Client class
+│   │   └── ClientCLI.h       # Header file for the ClientCLI class
+│   ├── src/                  # Source files for client-side code
+│   │   ├── Client.cpp        # Implementation of the Client class
+│   │   ├── ClientCLI.cpp     # Implementation of the ClientCLI class
+│   │   └── main.cpp          # Entry point for the client application
 │   ├── CMakeLists.txt        # CMake configuration for client
-│   ├── main.cpp              # Entry point for the client application                  
-│── CMakeLists.txt            # Root CMake configuration file
+│
+│── CMakeLists.txt            # Root CMake configuration file for the whole project
 │── .gitignore                # Git ignore file for excluding unnecessary files
 │── .gitattributes            # Git attributes file
 │── README.md                 # Project documentation (this file)
+
 ```
 
 ## Protocol Description
