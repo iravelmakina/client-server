@@ -24,7 +24,7 @@ private:
 
     Socket acceptClient() const;
 
-    void handleClient(const Socket &clientSocket) const;
+    void handleClient(Socket clientSocket) const;
 
     static std::string getFilePermissions(mode_t mode);
 

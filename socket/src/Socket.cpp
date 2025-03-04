@@ -1,7 +1,6 @@
 #include "Socket.h"
 
 #include <iostream>
-#include <stdnoreturn.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 
@@ -59,6 +58,7 @@ int Socket::acceptS(sockaddr_in *clientAddr, socklen_t *clientLen) const {
         perror("Accept failed");
         return -1;
     }
+
     return clientSocket;
 }
 

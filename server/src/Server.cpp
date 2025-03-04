@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <thread>
 #include <sys/fcntl.h>
 
 
@@ -17,7 +18,7 @@ void Server::start(const int port) {
         return;
     }
 
-    if (!_serverSocket.bindS(port) || !_serverSocket.listenS(1)) {
+    if (!_serverSocket.bindS(port) || !_serverSocket.listenS(SOMAXCONN)) {
         _serverSocket.closeS();
         return;
     }
@@ -36,9 +37,7 @@ void Server::run() const {
     while (true) {
         Socket clientSocket = acceptClient();
         if (clientSocket.getS() != -1) {
-            handleClient(clientSocket);
-            clientSocket.closeS();
-            std::cout << "Client disconnected." << std::endl;
+            std::thread(&Server::handleClient, this, clientSocket).detach(); // server::?
         }
     }
 }
@@ -59,7 +58,7 @@ Socket Server::acceptClient() const {
 }
 
 
-void Server::handleClient(const Socket &clientSocket) const {
+void Server::handleClient(Socket clientSocket) const {
     while (true) {
         char buffer[MESSAGE_SIZE] = {};
         const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
@@ -99,6 +98,8 @@ void Server::handleClient(const Socket &clientSocket) const {
             clientSocket.sendData("400 BAD REQUEST: Invalid command.");
         }
     }
+    clientSocket.closeS();
+    std::cout << "Client disconnected and socket closed." << std::endl;
 }
 
 

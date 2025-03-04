@@ -45,6 +45,7 @@ std::string Client::receiveResponse() {
     char buffer[MESSAGE_SIZE] = {};
     const ssize_t bytesReceived = _socket.receiveData(buffer, sizeof(buffer));
     if (bytesReceived <= 0) {
+        std::cout << "bytesReceived: " << bytesReceived << std::endl;
         std::cout << "\033[31m" << "Error: No response from server. Closing socket." << "\033[0m" << std::endl;
         _socket.closeS();
         return "";
