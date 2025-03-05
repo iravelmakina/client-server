@@ -1,4 +1,5 @@
 #include "Server.h"
+#include "ThreadPool.h"
 
 #include <iostream>
 #include <sstream>
@@ -9,7 +10,13 @@
 #include <sys/fcntl.h>
 
 
-Server::Server(const std::string &directory) : _directory(directory) {
+Server::Server(const std::string &directory, const size_t maxSimultaneousClients) : _directory(directory),
+    _threadPool(maxSimultaneousClients), _maxSimultaneousClients(maxSimultaneousClients) {
+}
+
+
+Server::~Server() {
+    stop();
 }
 
 
@@ -29,15 +36,16 @@ void Server::start(const int port) {
 
 void Server::stop() {
     _serverSocket.closeS();
+    _threadPool.shutdown();
     std::cout << "Server stopped." << std::endl;
 }
 
 
-void Server::run() const {
+void Server::run() {
     while (true) {
         Socket clientSocket = acceptClient();
         if (clientSocket.getS() != -1) {
-            std::thread(&Server::handleClient, this, clientSocket).detach();
+            _threadPool.submit([this, clientSocket] { handleClient(clientSocket); });
         }
     }
 }
@@ -49,7 +57,15 @@ Socket Server::acceptClient() const {
 
     const int clientFd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
 
-    const Socket clientSocket(clientFd);
+    Socket clientSocket(clientFd);
+
+    if (_threadPool.activeThreads() >= _maxSimultaneousClients) {
+        clientSocket.sendData("503 SERVICE UNAVAILABLE: Server is busy. Please try again later.");
+        clientSocket.closeS();
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        return clientSocket;
+    }
+
     std::cout << "Client connected." << std::endl;
     clientSocket.sendData(RESPONSE_OK.c_str());
 
@@ -83,11 +99,11 @@ void Server::processCommands(Socket &clientSocket, const std::string &username) 
 
     while (true) {
         ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
-        buffer[bytesReceived] = '\0';
-
         if (bytesReceived <= 0) {
             break;
         }
+
+        buffer[bytesReceived] = '\0';
 
         std::string command(buffer);
         std::cout << "Received command from " << username << ": " << command << std::endl;
@@ -99,7 +115,7 @@ void Server::processCommands(Socket &clientSocket, const std::string &username) 
 
         if (action == "INFO" || action == "GET" || action == "PUT" || action == "DELETE") {
             stream >> filename;
-            if (!isValidFilename(clientSocket, filename)) {
+            if (!isValidFilename(filename)) {
                 clientSocket.sendData("400 BAD REQUEST: Invalid filename.");
                 continue;
             }
@@ -124,7 +140,7 @@ void Server::processCommands(Socket &clientSocket, const std::string &username) 
 }
 
 
-void Server::handleGet(const Socket &clientSocket,  const std::string &username, const std::string &filename) const {
+void Server::handleGet(const Socket &clientSocket, const std::string &username, const std::string &filename) const {
     const std::string filePath = _directory + username + "/" + filename;
     const int fileFd = open(filePath.c_str(), O_RDONLY);
     if (fileFd == -1) {
@@ -136,7 +152,12 @@ void Server::handleGet(const Socket &clientSocket,  const std::string &username,
     clientSocket.sendData(RESPONSE_OK.c_str());
 
     char ackBuffer[3] = {};
-    clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
+    const ssize_t bytesReceived = clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
+    if (bytesReceived <= 0) {
+        close(fileFd);
+        return;
+    }
+
     if (std::string(ackBuffer) != RESPONSE_ACK) {
         std::cout << "\033[31m" << "Client did not acknowledge 200 OK." << "\033[0m" << std::endl;
         return;
@@ -152,7 +173,7 @@ void Server::handleGet(const Socket &clientSocket,  const std::string &username,
 }
 
 
-void Server::handlePut(const Socket &clientSocket,  const std::string &username, const std::string &filename) const {
+void Server::handlePut(const Socket &clientSocket, const std::string &username, const std::string &filename) const {
     const int fileFd = open((_directory + username + "/" + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fileFd == -1) {
         perror("open");
@@ -164,7 +185,11 @@ void Server::handlePut(const Socket &clientSocket,  const std::string &username,
 
     char buffer[FILE_BUFFER_SIZE];
     ssize_t bytesReceived;
-    while ((bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer))) > 0) {
+    while (true) {
+        if ((bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer))) <= 0) {
+            close(fileFd);
+            break;
+        }
         write(fileFd, buffer, bytesReceived);
     }
 
@@ -207,7 +232,7 @@ void Server::handleList(const Socket &clientSocket, const std::string &username)
 }
 
 
-void Server::handleDelete(const Socket &clientSocket,  const std::string &username, const std::string &filename) const {
+void Server::handleDelete(const Socket &clientSocket, const std::string &username, const std::string &filename) const {
     const std::string filePath = _directory + username + "/" + filename;
 
     if (access(filePath.c_str(), F_OK) == 0) {
@@ -224,7 +249,7 @@ void Server::handleDelete(const Socket &clientSocket,  const std::string &userna
 }
 
 
-void Server::handleInfo(const Socket &clientSocket,  const std::string &username, const std::string &filename) const {
+void Server::handleInfo(const Socket &clientSocket, const std::string &username, const std::string &filename) const {
     const std::string filePath = _directory + username + "/" + filename;
     struct stat fileStat;
 
@@ -270,13 +295,12 @@ std::string Server::getFilePermissions(const mode_t mode) {
 std::string Server::receiveUsername(const Socket &clientSocket) {
     char buffer[MESSAGE_SIZE] = {};
     const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
-
     if (bytesReceived <= 0) {
         return "";
     }
 
     const std::string username(buffer);
-    for (const char c : username) {
+    for (const char c: username) {
         if (!isalnum(c) || isspace(c)) {
             return "";
         }
@@ -288,7 +312,7 @@ std::string Server::receiveUsername(const Socket &clientSocket) {
 }
 
 
-bool Server::isValidFilename(const Socket &clientSocket, const std::string &filename) {
+bool Server::isValidFilename(const std::string &filename) {
     if (filename.empty() || filename == "." || filename.find('/') != std::string::npos || filename.find('\\') !=
         std::string::npos) {
         return false;
