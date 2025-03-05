@@ -24,7 +24,20 @@ int Client::connect(const char *serverIp, const int port) {
         return -1;
     }
 
-    std::cout << "\nConnected to server at " << serverIp << ":" << port << std::endl;
+    std::cout << "\nConnected to server at " << serverIp << ":" << port << "." << std::endl;
+    return 0;
+}
+
+
+int Client::sendUsername(const std::string& username) {
+    _socket.sendData(username.c_str());
+
+    const std::string response = receiveResponse();
+    if (response != RESPONSE_OK) {
+        std::cout << response << std::endl;
+        return -1;
+    }
+
     return 0;
 }
 
@@ -45,7 +58,6 @@ std::string Client::receiveResponse() {
     char buffer[MESSAGE_SIZE] = {};
     const ssize_t bytesReceived = _socket.receiveData(buffer, sizeof(buffer));
     if (bytesReceived <= 0) {
-        std::cout << "bytesReceived: " << bytesReceived << std::endl;
         std::cout << "\033[31m" << "Error: No response from server. Closing socket." << "\033[0m" << std::endl;
         _socket.closeS();
         return "";
