@@ -99,6 +99,10 @@ ssize_t Socket::sendData(const char *data, size_t dataLen) const {
 
 
 ssize_t Socket::receiveData(char *buffer, const size_t bufferSize) const {
+    if (!setRecvTimeout(600)) {
+        return -1;
+    }
+
     uint32_t netDataLen;
     const ssize_t receivedBytes = recv(_socketFd, &netDataLen, sizeof(netDataLen), MSG_WAITALL);
     if (receivedBytes != sizeof(netDataLen)) {
@@ -112,6 +116,19 @@ ssize_t Socket::receiveData(char *buffer, const size_t bufferSize) const {
     }
 
     return recv(_socketFd, buffer, dataLen, MSG_WAITALL);
+}
+
+
+bool Socket::setRecvTimeout(const int timeoutSeconds) const {
+    struct timeval tv;
+    tv.tv_sec = timeoutSeconds;
+    tv.tv_usec = 0;
+
+    if (setsockopt(_socketFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1) {
+        perror("error setting receive timeout");
+        return false;
+    }
+    return true;
 }
 
 
