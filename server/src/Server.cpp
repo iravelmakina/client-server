@@ -37,7 +37,7 @@ void Server::run() const {
     while (true) {
         Socket clientSocket = acceptClient();
         if (clientSocket.getS() != -1) {
-            std::thread(&Server::handleClient, this, clientSocket).detach(); // server::?
+            std::thread(&Server::handleClient, this, clientSocket).detach();
         }
     }
 }
@@ -46,7 +46,6 @@ void Server::run() const {
 Socket Server::acceptClient() const {
     sockaddr_in clientAddr{};
     socklen_t clientAddrLen = sizeof(clientAddr);
-    std::cout << "\nWaiting for a client to connect..." << std::endl;
 
     const int clientFd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
 
@@ -59,52 +58,74 @@ Socket Server::acceptClient() const {
 
 
 void Server::handleClient(Socket clientSocket) const {
+    const std::string username = receiveUsername(clientSocket);
+    if (username.empty()) {
+        clientSocket.sendData("400 BAD REQUEST: Invalid username.");
+        cleanupClient(clientSocket, username);
+        return;
+    }
+
+    if (!createClientFolderIfNotExists(username)) {
+        clientSocket.sendData("500 SERVER ERROR: Unable to create client folder.");
+        cleanupClient(clientSocket, username);
+        return;
+    }
+
+    clientSocket.sendData(RESPONSE_OK.c_str());
+
+    processCommands(clientSocket, username);
+    cleanupClient(clientSocket, username);
+}
+
+
+void Server::processCommands(Socket &clientSocket, const std::string &username) const {
+    char buffer[MESSAGE_SIZE] = {};
+
     while (true) {
-        char buffer[MESSAGE_SIZE] = {};
-        const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
+        ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
+        buffer[bytesReceived] = '\0';
 
         if (bytesReceived <= 0) {
             break;
         }
 
         std::string command(buffer);
-        std::cout << "Received command: " << command << std::endl;
+        std::cout << "Received command from " << username << ": " << command << std::endl;
 
-        if (command.find("GET") == 0) {
-            if (!isValidFilename(clientSocket, command.substr(4))) {
+        std::istringstream stream(command);
+        std::string action, filename;
+
+        stream >> action;
+
+        if (action == "INFO" || action == "GET" || action == "PUT" || action == "DELETE") {
+            stream >> filename;
+            if (!isValidFilename(clientSocket, filename)) {
+                clientSocket.sendData("400 BAD REQUEST: Invalid filename.");
                 continue;
             }
-            handleGet(clientSocket, command.substr(4));
-        } else if (command == "LIST") {
-            handleList(clientSocket);
-        } else if (command.find("PUT") == 0) {
-            if (!isValidFilename(clientSocket, command.substr(4))) {
-                continue;
-            }
-            handlePut(clientSocket, command.substr(4));
-        } else if (command.find("DELETE") == 0) {
-            if (!isValidFilename(clientSocket, command.substr(7))) {
-                continue;
-            }
-            handleDelete(clientSocket, command.substr(7));
-        } else if (command.find("INFO") == 0) {
-            if (!isValidFilename(clientSocket, command.substr(5))) {
-                continue;
-            }
-            handleInfo(clientSocket, command.substr(5));
-        } else if (command == "EXIT") {
+        }
+
+        if (action == "GET") {
+            handleGet(clientSocket, username, filename);
+        } else if (action == "LIST") {
+            handleList(clientSocket, username);
+        } else if (action == "PUT") {
+            handlePut(clientSocket, username, filename);
+        } else if (action == "DELETE") {
+            handleDelete(clientSocket, username, filename);
+        } else if (action == "INFO") {
+            handleInfo(clientSocket, username, filename);
+        } else if (action == "EXIT") {
             break;
         } else {
             clientSocket.sendData("400 BAD REQUEST: Invalid command.");
         }
     }
-    clientSocket.closeS();
-    std::cout << "Client disconnected and socket closed." << std::endl;
 }
 
 
-void Server::handleGet(const Socket &clientSocket, const std::string &filename) const {
-    const std::string filePath = _directory + filename;
+void Server::handleGet(const Socket &clientSocket,  const std::string &username, const std::string &filename) const {
+    const std::string filePath = _directory + username + "/" + filename;
     const int fileFd = open(filePath.c_str(), O_RDONLY);
     if (fileFd == -1) {
         perror("open");
@@ -131,8 +152,8 @@ void Server::handleGet(const Socket &clientSocket, const std::string &filename) 
 }
 
 
-void Server::handlePut(const Socket &clientSocket, const std::string &filename) const {
-    const int fileFd = open((_directory + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+void Server::handlePut(const Socket &clientSocket,  const std::string &username, const std::string &filename) const {
+    const int fileFd = open((_directory + username + "/" + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
     if (fileFd == -1) {
         perror("open");
         clientSocket.sendData("500 SERVER ERROR: Unable to create file.");
@@ -152,8 +173,8 @@ void Server::handlePut(const Socket &clientSocket, const std::string &filename) 
 }
 
 
-void Server::handleList(const Socket &clientSocket) const {
-    DIR *dir = opendir(_directory.c_str());
+void Server::handleList(const Socket &clientSocket, const std::string &username) const {
+    DIR *dir = opendir((_directory + username).c_str());
     if (!dir) {
         perror("opendir");
         clientSocket.sendData("500 SERVER ERROR: Failed to open directory.");
@@ -186,8 +207,8 @@ void Server::handleList(const Socket &clientSocket) const {
 }
 
 
-void Server::handleDelete(const Socket &clientSocket, const std::string &filename) const {
-    const std::string filePath = _directory + filename;
+void Server::handleDelete(const Socket &clientSocket,  const std::string &username, const std::string &filename) const {
+    const std::string filePath = _directory + username + "/" + filename;
 
     if (access(filePath.c_str(), F_OK) == 0) {
         if (unlink(filePath.c_str()) == 0) {
@@ -203,8 +224,8 @@ void Server::handleDelete(const Socket &clientSocket, const std::string &filenam
 }
 
 
-void Server::handleInfo(const Socket &clientSocket, const std::string &filename) const {
-    const std::string filePath = _directory + filename;
+void Server::handleInfo(const Socket &clientSocket,  const std::string &username, const std::string &filename) const {
+    const std::string filePath = _directory + username + "/" + filename;
     struct stat fileStat;
 
     if (access(filePath.c_str(), F_OK) == 0) {
@@ -246,11 +267,56 @@ std::string Server::getFilePermissions(const mode_t mode) {
 }
 
 
+std::string Server::receiveUsername(const Socket &clientSocket) {
+    char buffer[MESSAGE_SIZE] = {};
+    const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
+
+    if (bytesReceived <= 0) {
+        return "";
+    }
+
+    const std::string username(buffer);
+    for (const char c : username) {
+        if (!isalnum(c) || isspace(c)) {
+            return "";
+        }
+    }
+
+    std::cout << "Client's name: " << username << std::endl;
+
+    return username;
+}
+
+
 bool Server::isValidFilename(const Socket &clientSocket, const std::string &filename) {
     if (filename.empty() || filename == "." || filename.find('/') != std::string::npos || filename.find('\\') !=
         std::string::npos) {
-        clientSocket.sendData("400 BAD REQUEST: Invalid filename.");
         return false;
     }
     return true;
+}
+
+
+bool Server::createClientFolderIfNotExists(const std::string &clientName) const {
+    const std::string clientFolder = _directory + clientName;
+
+    struct stat dirStat;
+
+    if (stat(clientFolder.c_str(), &dirStat) != 0) {
+        if (mkdir(clientFolder.c_str(), 0777) == -1) {
+            perror("Error creating client folder");
+            return false;
+        }
+    }
+    return true;
+}
+
+
+void Server::cleanupClient(Socket &clientSocket, const std::string &username) {
+    if (username.empty()) {
+        std::cout << "Client disconnected." << std::endl;
+    } else {
+        std::cout << "Client " << username << " disconnected." << std::endl;
+    }
+    clientSocket.closeS();
 }
