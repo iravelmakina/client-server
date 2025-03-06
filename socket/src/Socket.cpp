@@ -93,6 +93,9 @@ ssize_t Socket::sendData(const char *data, size_t dataLen) const {
     if (sentBytes != sizeof(netDataLen)) {
         return -1; // failed to send complete length prefix
     }
+    if (sentBytes == 0) {
+        return 0;
+    }
 
     return send(_socketFd, data, dataLen, 0);
 }
@@ -100,13 +103,16 @@ ssize_t Socket::sendData(const char *data, size_t dataLen) const {
 
 ssize_t Socket::receiveData(char *buffer, const size_t bufferSize) const {
     if (!setRecvTimeout(600)) {
-        return -1;
+        return -1; // failed to set receive timeout
     }
 
     uint32_t netDataLen;
     const ssize_t receivedBytes = recv(_socketFd, &netDataLen, sizeof(netDataLen), MSG_WAITALL);
-    if (receivedBytes != sizeof(netDataLen)) {
+    if (receivedBytes != sizeof(netDataLen) && receivedBytes != 0) {
         return -1; // failed to receive complete length prefix
+    }
+    if (receivedBytes == 0) {
+        return 0;
     }
 
     const uint32_t dataLen = ntohl(netDataLen);
