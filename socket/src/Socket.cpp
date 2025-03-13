@@ -113,7 +113,7 @@ ssize_t Socket::sendData(const char *data, size_t dataLen) const {
 
 
 ssize_t Socket::receiveData(char *buffer, const size_t bufferSize) const {
-    if (!setRecvTimeout(600)) {
+    if (!setRecvTimeout()) {
         return -1; // failed to set receive timeout
     }
 
@@ -136,9 +136,13 @@ ssize_t Socket::receiveData(char *buffer, const size_t bufferSize) const {
 }
 
 
-bool Socket::setRecvTimeout(const int timeoutSeconds) const {
+bool Socket::setRecvTimeout() const {
+    if (_timeoutSeconds == -1) {
+        return true;
+    }
+
     struct timeval tv{};
-    tv.tv_sec = timeoutSeconds;
+    tv.tv_sec = _timeoutSeconds;
     tv.tv_usec = 0;
 
     if (setsockopt(_socketFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1) {
@@ -156,4 +160,9 @@ int Socket::getS() const {
 
 void Socket::setS(const int s) {
     _socketFd = s;
+}
+
+
+void Socket::setTimeoutSeconds(const int timeoutSeconds) {
+    _timeoutSeconds = timeoutSeconds;
 }

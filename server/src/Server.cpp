@@ -72,6 +72,7 @@ Socket Server::acceptClient() const {
     }
 
     Socket clientSocket(clientFd);
+    clientSocket.setTimeoutSeconds(600);
 
     if (_threadPool.activeThreads() >= _maxSimultaneousClients) {
         clientSocket.sendData("503 SERVICE UNAVAILABLE: Server is busy. Please try again later.");
@@ -450,6 +451,6 @@ void Server::displayCommandStatistics() const {
     std::lock_guard<std::mutex> lock(_statisticsMutex);
     std::cout << "\nCommand Statistics:" << std::endl;
     for (const std::pair<const std::string, int> &entry : _commandStatistics) {
-        std::cout << entry.first << ": " << entry.second << " times" << std::endl;
+        std::cout << entry.first << ": " << entry.second << " time(s)" << std::endl;
     }
 }

@@ -36,13 +36,16 @@ public:
     ssize_t sendData(const char *data, size_t dataLen = std::string::npos) const;
     ssize_t receiveData(char *buffer, size_t bufferSize) const;
 
-    bool setRecvTimeout(int timeoutSeconds) const;
+    bool setRecvTimeout() const;
 
 
     int getS() const;
     void setS(int s);
 
+    void setTimeoutSeconds(int timeoutSeconds);
+
 private:
     int _socketFd;
+    int _timeoutSeconds{-1};
     bool _shutdownFlag{false};
 };
