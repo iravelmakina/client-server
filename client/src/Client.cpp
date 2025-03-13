@@ -20,7 +20,16 @@ int Client::connect(const char *serverIp, const int port) {
         return -1;
     }
 
-    if (receiveResponse() != RESPONSE_OK) {
+    const std::string connectionResponse = receiveResponse();
+    if (connectionResponse != RESPONSE_OK) {
+        std::cout << connectionResponse << std::endl;
+        return -1;
+    }
+
+    _socket.sendData("1.0");
+    const std::string versionResponse = receiveResponse();
+    if (versionResponse != RESPONSE_OK) {
+        std::cout << versionResponse << std::endl;
         return -1;
     }
 
