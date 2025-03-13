@@ -36,6 +36,7 @@ void Server::run() const {
     while (true) {
         Socket clientSocket = acceptClient();
         if (clientSocket.getS() != -1) {
+            std::cout << "Client connected." << std::endl;
             defineVersionAndHandleClient(clientSocket);
             clientSocket.closeS();
             std::cout << "Client disconnected." << std::endl;
@@ -52,7 +53,6 @@ Socket Server::acceptClient() const {
     const int clientFd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
 
     const Socket clientSocket(clientFd);
-    std::cout << "Client connected." << std::endl;
     clientSocket.sendData(RESPONSE_OK.c_str());
 
     return clientSocket;
