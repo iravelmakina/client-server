@@ -55,11 +55,22 @@ int Socket::acceptS(sockaddr_in *clientAddr, socklen_t *clientLen) const {
                                     reinterpret_cast<struct sockaddr *>(clientAddr),
                                     clientLen);
     if (clientSocket == -1) {
+        if (_shutdownFlag && errno == ECONNABORTED) {
+            return -1;
+        }
         perror("Accept failed");
         return -1;
     }
 
     return clientSocket;
+}
+
+
+void Socket::shutdownS() {
+    if (_socketFd != -1) {
+        shutdown(_socketFd, SHUT_RDWR);
+        _shutdownFlag = true;
+    }
 }
 
 
@@ -126,7 +137,7 @@ ssize_t Socket::receiveData(char *buffer, const size_t bufferSize) const {
 
 
 bool Socket::setRecvTimeout(const int timeoutSeconds) const {
-    struct timeval tv;
+    struct timeval tv{};
     tv.tv_sec = timeoutSeconds;
     tv.tv_usec = 0;
 

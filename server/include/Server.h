@@ -23,7 +23,7 @@ public:
     explicit Server(const std::string &directory, size_t maxSimultaneousClients);
 
     void start(int port);
-    void stop();
+    void shutdown();
 
     void handleList(const Socket &clientSocket, const std::string &username) const;
     size_t handleGet(const Socket &clientSocket, const std::string &username, const std::string &filename) const;

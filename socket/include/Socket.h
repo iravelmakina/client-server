@@ -27,6 +27,9 @@ public:
 
 
     int acceptS(sockaddr_in *clientAddr, socklen_t *clientLen) const;
+
+    void shutdownS();
+
     bool connectS(const char *serverIp, int port) const;
 
 
@@ -41,4 +44,5 @@ public:
 
 private:
     int _socketFd;
+    bool _shutdownFlag{false};
 };

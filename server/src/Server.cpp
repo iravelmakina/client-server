@@ -22,7 +22,7 @@ Server::Server(const std::string &directory, const size_t maxSimultaneousClients
 
 Server::~Server() {
     if (!_stopFlag) {
-        stop();
+        shutdown();
     }
 }
 
@@ -41,8 +41,9 @@ void Server::start(const int port) {
 }
 
 
-void Server::stop() {
+void Server::shutdown() {
     _stopFlag = true;
+    _serverSocket.shutdownS();
     _serverSocket.closeS();
     _threadPool.shutdown();
     std::cout << "Server stopped." << std::endl;
@@ -66,6 +67,10 @@ Socket Server::acceptClient() const {
     socklen_t clientAddrLen = sizeof(clientAddr);
 
     const int clientFd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
+    if (clientFd == -1) {
+        return Socket(-1);
+    }
+
     Socket clientSocket(clientFd);
 
     if (_threadPool.activeThreads() >= _maxSimultaneousClients) {
@@ -242,8 +247,8 @@ size_t Server::handlePut(const Socket &clientSocket, const std::string &username
 
     clientSocket.sendData(RESPONSE_OK.c_str());
 
-    char buffer[FILE_BUFFER_SIZE];
     while (true) {
+        char buffer[FILE_BUFFER_SIZE];
         const ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer), username.c_str());
         if (result.status == ReceiveStatus::ERROR || result.status == ReceiveStatus::TIMEOUT) {
             std::cout << "\033[31m" << result.message << "\033[0m" << std::endl;
@@ -315,7 +320,7 @@ void Server::handleDelete(const Socket &clientSocket, const std::string &usernam
 
 void Server::handleInfo(const Socket &clientSocket, const std::string &username, const std::string &filename) const {
     const std::string filePath = _directory + username + "/" + filename;
-    struct stat fileStat;
+    struct stat fileStat{};
 
     if (access(filePath.c_str(), F_OK) == 0) {
         if (stat(filePath.c_str(), &fileStat) == 0) {
@@ -378,7 +383,7 @@ bool Server::isValidFilename(const std::string &filename) {
 bool Server::createClientFolderIfNotExists(const std::string &clientName) const {
     const std::string clientFolder = _directory + clientName;
 
-    struct stat dirStat;
+    struct stat dirStat{};
 
     if (stat(clientFolder.c_str(), &dirStat) != 0) {
         if (mkdir(clientFolder.c_str(), 0777) == -1) {
@@ -419,7 +424,7 @@ ReceiveResult Server::receiveMessage(const Socket &clientSocket, char *buffer, c
         switch (errno) {
             case EAGAIN:
                 result.status = ReceiveStatus::TIMEOUT;
-                result.message = "Receive timeout from client" + usernameStr + ".";
+                result.message = "Receive timeout from client " + usernameStr + ".";
             break;
             case ECONNRESET:
                 result.status = ReceiveStatus::CLIENT_DISCONNECTED;
@@ -443,7 +448,7 @@ void Server::updateCommandStatistics(const std::string &command) {
 
 void Server::displayCommandStatistics() const {
     std::lock_guard<std::mutex> lock(_statisticsMutex);
-    std::cout << "Command Statistics:" << std::endl;
+    std::cout << "\nCommand Statistics:" << std::endl;
     for (const std::pair<const std::string, int> &entry : _commandStatistics) {
         std::cout << entry.first << ": " << entry.second << " times" << std::endl;
     }
