@@ -36,7 +36,8 @@ void Server::run() const {
     while (true) {
         Socket clientSocket = acceptClient();
         if (clientSocket.getS() != -1) {
-            handleClient(clientSocket);
+            std::cout << "Client connected." << std::endl;
+            defineVersionAndHandleClient(clientSocket);
             clientSocket.closeS();
             std::cout << "Client disconnected." << std::endl;
         }
@@ -52,10 +53,27 @@ Socket Server::acceptClient() const {
     const int clientFd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
 
     const Socket clientSocket(clientFd);
-    std::cout << "Client connected." << std::endl;
     clientSocket.sendData(RESPONSE_OK.c_str());
 
     return clientSocket;
+}
+
+
+void Server::defineVersionAndHandleClient(const Socket &clientSocket) const {
+    char buffer[MESSAGE_SIZE] = {};
+    const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
+    if (bytesReceived <= 0) {
+        return;
+    }
+
+    const std::string initialMessage(buffer);
+    if (initialMessage == "1.0") {
+        clientSocket.sendData(RESPONSE_OK.c_str());
+        handleClient(clientSocket);
+    } else {
+        clientSocket.sendData("400 BAD REQUEST: Invalid version.");
+        std::cout << "\033[31m" << "Invalid version." << "\033[0m" << std::endl;
+    }
 }
 
 
