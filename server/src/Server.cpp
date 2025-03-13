@@ -10,13 +10,20 @@
 #include <sys/fcntl.h>
 
 
+const std::vector<std::string> COMMANDS = {"GET", "PUT", "LIST", "DELETE", "INFO", "EXIT"};
+
 Server::Server(const std::string &directory, const size_t maxSimultaneousClients) : _directory(directory),
     _threadPool(maxSimultaneousClients), _maxSimultaneousClients(maxSimultaneousClients) {
+    for (const std::string &command : COMMANDS) {
+        _commandStatistics[command] = 0;
+    }
 }
 
 
 Server::~Server() {
-    stop();
+    if (!_stopFlag) {
+        stop();
+    }
 }
 
 
@@ -35,16 +42,19 @@ void Server::start(const int port) {
 
 
 void Server::stop() {
+    _stopFlag = true;
     _serverSocket.closeS();
     _threadPool.shutdown();
     std::cout << "Server stopped." << std::endl;
+    displayCommandStatistics();
 }
 
 
 void Server::run() {
-    while (true) {
+    while (!_stopFlag) {
         Socket clientSocket = acceptClient();
         if (clientSocket.getS() != -1) {
+            std::cout << "Client connected." << std::endl;
             _threadPool.submit([this, clientSocket] { defineVersionAndHandleClient(clientSocket); });
         }
     }
@@ -65,12 +75,11 @@ Socket Server::acceptClient() const {
     }
 
     clientSocket.sendData(RESPONSE_OK.c_str());
-    std::cout << "Client connected." << std::endl;
 
     return clientSocket;
 }
 
-void Server::defineVersionAndHandleClient(Socket clientSocket) const {
+void Server::defineVersionAndHandleClient(Socket clientSocket) {
     char buffer[MESSAGE_SIZE] = {};
     const ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer));
     if (result.status != ReceiveStatus::SUCCESS) {
@@ -96,13 +105,14 @@ void Server::defineVersionAndHandleClient(Socket clientSocket) const {
 }
 
 
-void Server::handleClient1dot0(Socket clientSocket) const {
+void Server::handleClient1dot0(Socket clientSocket) {
     std::string username = "v1dot0";
     processCommands(clientSocket, username);
     cleanupClient(clientSocket, username.c_str());
 }
 
-void Server::handleClient2dot0(Socket clientSocket) const {
+
+void Server::handleClient2dot0(Socket clientSocket) {
     std::string username;
     if (!authenticateClient(clientSocket, username)) {
         cleanupClient(clientSocket);
@@ -141,7 +151,7 @@ bool Server::authenticateClient(const Socket &clientSocket, std::string &usernam
 }
 
 
-void Server::processCommands(Socket &clientSocket, std::string &username) const {
+void Server::processCommands(Socket &clientSocket, std::string &username) {
     char buffer[MESSAGE_SIZE] = {};
     while (true) {
         ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer), username.c_str());
@@ -157,6 +167,8 @@ void Server::processCommands(Socket &clientSocket, std::string &username) const 
         std::istringstream stream(command);
         std::string action, filename;
         stream >> action;
+
+        updateCommandStatistics(action);
 
         if (action == "INFO" || action == "GET" || action == "PUT" || action == "DELETE") {
             stream >> filename;
@@ -421,4 +433,18 @@ ReceiveResult Server::receiveMessage(const Socket &clientSocket, char *buffer, c
     }
 
     return result;
+}
+
+
+void Server::updateCommandStatistics(const std::string &command) {
+    std::lock_guard<std::mutex> lock(_statisticsMutex);
+    _commandStatistics[command]++;
+}
+
+void Server::displayCommandStatistics() const {
+    std::lock_guard<std::mutex> lock(_statisticsMutex);
+    std::cout << "Command Statistics:" << std::endl;
+    for (const std::pair<const std::string, int> &entry : _commandStatistics) {
+        std::cout << entry.first << ": " << entry.second << " times" << std::endl;
+    }
 }

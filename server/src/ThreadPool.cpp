@@ -39,7 +39,7 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::executionCycle() {
     while (true) {
         std::unique_lock<std::mutex> lock(_mutex);
-        _cv.wait(lock, [this] {  return (_stopFlag || !_taskQueue.empty()); });
+        _cv.wait(lock, [this] {  return _stopFlag || !_taskQueue.empty(); });
 
         if (_stopFlag && _taskQueue.empty()) {
             return;

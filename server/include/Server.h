@@ -38,29 +38,31 @@ private:
     const std::string _directory;
     ThreadPool _threadPool;
     size_t _maxSimultaneousClients;
+    std::atomic<bool> _stopFlag{false};
+
+    std::unordered_map<std::string, int> _commandStatistics;
+    mutable std::mutex _statisticsMutex;
+
+    void updateCommandStatistics(const std::string &command);
+    void displayCommandStatistics() const;
 
     void run();
 
     Socket acceptClient() const;
 
-    void defineVersionAndHandleClient(Socket clientSocket) const;
+    void defineVersionAndHandleClient(Socket clientSocket);
 
-    void handleClient1dot0(Socket clientSocket) const;
-
-
-    void handleClient2dot0(Socket clientSocket) const;
+    void handleClient1dot0(Socket clientSocket);
+    void handleClient2dot0(Socket clientSocket);
 
     static bool authenticateClient(const Socket &clientSocket, std::string &username) ;
-    void processCommands(Socket &clientSocket, std::string &username) const;
+    void processCommands(Socket &clientSocket, std::string &username);
     static void cleanupClient(Socket &clientSocket, const char* username = nullptr);
 
     static ReceiveResult receiveMessage(const Socket &clientSocket, char *buffer, size_t bufferSize, const char *username = nullptr);
 
-
     static bool isValidUsername(const std::string &username);
-
     static bool isValidFilename(const std::string &filename);
-
     bool createClientFolderIfNotExists(const std::string &clientName) const;
 
     static std::string getFilePermissions(mode_t mode);
