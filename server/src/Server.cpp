@@ -32,7 +32,7 @@ void Server::start(const int port) {
         return;
     }
 
-    if (!_serverSocket.bindS(port) || !_serverSocket.listenS(SOMAXCONN)) { // check other values
+    if (!_serverSocket.bindS(port) || !_serverSocket.listenS(SOMAXCONN)) {
         _serverSocket.closeS();
         return;
     }

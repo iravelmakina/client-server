@@ -20,7 +20,16 @@ int Client::connect(const char *serverIp, const int port) {
         return -1;
     }
 
-    if (receiveResponse() != RESPONSE_OK) {
+    const std::string connectionResponse = receiveResponse();
+    if (connectionResponse != RESPONSE_OK) {
+        std::cout << connectionResponse << std::endl;
+        return -1;
+    }
+
+    _socket.sendData("2.0");
+    const std::string versionResponse = receiveResponse();
+    if (versionResponse != RESPONSE_OK) {
+        std::cout << versionResponse << std::endl;
         return -1;
     }
 
@@ -58,7 +67,11 @@ std::string Client::receiveResponse() {
     char buffer[MESSAGE_SIZE] = {};
     const ssize_t bytesReceived = _socket.receiveData(buffer, sizeof(buffer));
     if (bytesReceived <= 0) {
-        std::cout << "\033[31m" << "Error: No response from server. Closing socket." << "\033[0m" << std::endl;
+        if (bytesReceived == 0) {
+            std::cout << "\033[31m" << "Error: Server closed the connection." << "\033[0m" << std::endl;
+        } else {
+            std::cout << "\033[31m" << "Error: No response from server. Closing socket." << "\033[0m" << std::endl;
+        }
         _socket.closeS();
         return "";
     }
