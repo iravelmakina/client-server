@@ -15,7 +15,7 @@ const std::vector<std::string> COMMANDS = {"GET", "PUT", "LIST", "DELETE", "INFO
 
 Server::Server(const std::string &directory, const size_t maxSimultaneousClients) : _directory(directory),
     _threadPool(maxSimultaneousClients), _maxSimultaneousClients(maxSimultaneousClients) {
-    for (const std::string &command : COMMANDS) {
+    for (const std::string &command: COMMANDS) {
         _commandStatistics[command] = 0;
     }
 }
@@ -197,7 +197,7 @@ void Server::run() {
         Socket clientSocket = acceptClient();
         if (clientSocket.getS() != -1) {
             std::cout << "Client connected." << std::endl;
-            _threadPool.submit([this, clientSocket] { defineVersionAndHandleClient(clientSocket); });
+            _threadPool.submit([this, &clientSocket] { defineVersionAndHandleClient(clientSocket); });
         }
     }
 }
@@ -226,7 +226,7 @@ Socket Server::acceptClient() const {
     return clientSocket;
 }
 
-void Server::defineVersionAndHandleClient(Socket clientSocket) {
+void Server::defineVersionAndHandleClient(Socket &clientSocket) {
     char buffer[MESSAGE_SIZE] = {};
     const ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer));
     if (result.status != ReceiveStatus::SUCCESS) {
@@ -252,14 +252,14 @@ void Server::defineVersionAndHandleClient(Socket clientSocket) {
 }
 
 
-void Server::handleClient1dot0(Socket clientSocket) {
+void Server::handleClient1dot0(Socket &clientSocket) {
     std::string username = "v1dot0";
     processCommands(clientSocket, username);
     cleanupClient(clientSocket, username.c_str());
 }
 
 
-void Server::handleClient2dot0(Socket clientSocket) {
+void Server::handleClient2dot0(Socket &clientSocket) {
     std::string username;
     if (!authenticateClient(clientSocket, username)) {
         cleanupClient(clientSocket);
@@ -298,7 +298,7 @@ bool Server::authenticateClient(const Socket &clientSocket, std::string &usernam
 }
 
 
-void Server::processCommands(Socket &clientSocket, std::string &username) {
+void Server::processCommands(const Socket &clientSocket, std::string &username) {
     char buffer[MESSAGE_SIZE] = {};
     while (true) {
         ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer), username.c_str());
@@ -354,7 +354,8 @@ void Server::cleanupClient(Socket &clientSocket, const char *username) {
 }
 
 
-ReceiveResult Server::receiveMessage(const Socket &clientSocket, char *buffer, const size_t bufferSize, const char *username) {
+ReceiveResult Server::receiveMessage(const Socket &clientSocket, char *buffer, const size_t bufferSize,
+                                     const char *username) {
     ReceiveResult result;
     result.bytesReceived = clientSocket.receiveData(buffer, bufferSize);
 
@@ -373,16 +374,16 @@ ReceiveResult Server::receiveMessage(const Socket &clientSocket, char *buffer, c
         switch (errno) {
             case EAGAIN:
                 result.status = ReceiveStatus::TIMEOUT;
-            result.message = "Receive timeout from client " + usernameStr + ".";
-            break;
+                result.message = "Receive timeout from client " + usernameStr + ".";
+                break;
             case ECONNRESET:
                 result.status = ReceiveStatus::CLIENT_DISCONNECTED;
-            result.message = "Client " + usernameStr + " disconnected.";
-            break;
+                result.message = "Client " + usernameStr + " disconnected.";
+                break;
             default:
                 result.status = ReceiveStatus::ERROR;
-            result.message = std::string("Receive error: ") + strerror(errno) + " from client " + usernameStr + ".";
-            break;
+                result.message = std::string("Receive error: ") + strerror(errno) + " from client " + usernameStr + ".";
+                break;
         }
     }
 
@@ -451,7 +452,7 @@ void Server::updateCommandStatistics(const std::string &command) {
 void Server::displayCommandStatistics() const {
     std::lock_guard<std::mutex> lock(_statisticsMutex);
     std::cout << "\nCommand Statistics:" << std::endl;
-    for (const std::pair<const std::string, int> &entry : _commandStatistics) {
+    for (const std::pair<const std::string, int> &entry: _commandStatistics) {
         std::cout << entry.first << ": " << entry.second << " time(s)" << std::endl;
     }
 }

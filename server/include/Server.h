@@ -46,13 +46,13 @@ private:
 
     void run();
     Socket acceptClient() const;
-    void defineVersionAndHandleClient(Socket clientSocket);
+    void defineVersionAndHandleClient(Socket &clientSocket);
 
-    void handleClient1dot0(Socket clientSocket);
-    void handleClient2dot0(Socket clientSocket);
+    void handleClient1dot0(Socket &clientSocket);
+    void handleClient2dot0(Socket &clientSocket);
 
     static bool authenticateClient(const Socket &clientSocket, std::string &username) ;
-    void processCommands(Socket &clientSocket, std::string &username);
+    void processCommands(const Socket &clientSocket, std::string &username);
     static void cleanupClient(Socket &clientSocket, const char* username = nullptr);
 
     static ReceiveResult receiveMessage(const Socket &clientSocket, char *buffer, size_t bufferSize, const char *username = nullptr);

@@ -10,7 +10,7 @@ ThreadPool::ThreadPool(const size_t numThreads) {
 }
 
 
-void ThreadPool::submit(const std::function<void()>& task) {
+void ThreadPool::submit(const std::function<void()> &task) {
     std::lock_guard<std::mutex> lock(_mutex);
     _taskQueue.push(task);
     _cv.notify_one();
@@ -21,7 +21,7 @@ void ThreadPool::shutdown() {
     _stopFlag = true;
     _cv.notify_all();
 
-    for (std::thread& worker : _workers) {
+    for (std::thread &worker: _workers) {
         if (worker.joinable()) {
             worker.join();
         }
@@ -44,7 +44,7 @@ ThreadPool::~ThreadPool() {
 void ThreadPool::executionCycle() {
     while (true) {
         std::unique_lock<std::mutex> lock(_mutex);
-        _cv.wait(lock, [this] {  return _stopFlag || !_taskQueue.empty(); });
+        _cv.wait(lock, [this] { return _stopFlag || !_taskQueue.empty(); });
 
         if (_stopFlag && _taskQueue.empty()) {
             return;

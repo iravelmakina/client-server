@@ -83,7 +83,8 @@ std::string ClientCLI::getUsernameFromUser() {
         std::cout << "Enter your username: ";
         std::getline(std::cin, username);
         if (username.empty() || !isValidUsername(username)) {
-            std::cout << "Invalid username. Please enter a valid username (without special characters or empty)." << std::endl;
+            std::cout << "Invalid username. Please enter a valid username (without special characters or empty)." <<
+                    std::endl;
         } else {
             break;
         }
@@ -92,8 +93,8 @@ std::string ClientCLI::getUsernameFromUser() {
 }
 
 
-bool ClientCLI::isValidUsername(const std::string& username) {
-    for (const char c : username) {
+bool ClientCLI::isValidUsername(const std::string &username) {
+    for (const char c: username) {
         if (!isalnum(c)) {
             return false;
         }
