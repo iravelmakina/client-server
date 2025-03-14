@@ -50,7 +50,6 @@ bool Client::isConnected() const {
 }
 
 
-
 int Client::sendUsername(const std::string& username) {
     _socket.sendData(username.c_str());
 
