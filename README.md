@@ -1,4 +1,4 @@
-# Client-Server Application for File Transfer
+# Client-Server Application for File Transfer (Version 1)
 
 ## Overview
 This project implements a **Client-Server application** over **TCP** that allows clients to perform various file operations on the server, including **uploading, downloading, listing, deleting**, and **retrieving file information**. The communication follows a **custom protocol** for handling these requests and responses.
@@ -11,6 +11,7 @@ The system includes a **Socket class** for handling low-level socket operations,
 - **Message Prefix**: A 4-byte length prefix indicating the size of the data being sent, ensuring reliable data transfer.
 - **Error Handling**: Proper error codes for invalid operations (e.g., file not found, permission errors, server failures).
 - **ClientCLI**: A command-line interface to interact with the server and perform file operations.
+- **UTF-8 Encoding**: All text data (e.g., filenames, messages) is encoded in **UTF-8**, where **1 character = 1 byte**.
 
 ## Installation and Compilation
 
@@ -32,6 +33,7 @@ g++ -std=c++11 -pthread client/Client.cpp client/main.cpp client/ClientCLI.cpp -
 
 #### **Using CMake**
 Alternatively, use CMake for a more structured build process.
+
 ### Summary of Compilation Commands:
 
 1. **Compile Socket Library**:
@@ -136,13 +138,11 @@ client-server/
 
 ```
 
-## Protocol Description
+## Protocol Description (Version 1)
 
 ### **Message Format**:
 - **Prefix**: 4-byte unsigned integer (network byte order) indicating the length of the data.
-- **Data**: The actual message or file data, length specified by the prefix.
-
-Here is the updated communication example using the table format you provided:
+- **Data**: The actual message or file data, length specified by the prefix. All text data is encoded in **UTF-8**, where **1 character = 1 byte**.
 
 ### **Communication Example**:
 
