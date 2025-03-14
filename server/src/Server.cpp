@@ -51,6 +51,7 @@ void Server::handleList(const Socket &clientSocket, const std::string &username)
         perror("opendir");
         clientSocket.sendData("500 SERVER ERROR: Failed to open directory.");
         return;
+    }
 
     dirent *entry;
     std::ostringstream fileListStream;
@@ -196,7 +197,7 @@ void Server::run() {
         Socket clientSocket = acceptClient();
         if (clientSocket.getS() != -1) {
             std::cout << "Client connected." << std::endl;
-            _threadPool.submit([this, &clientSocket] { defineVersionAndHandleClient(clientSocket); });
+            _threadPool.submit([this, clientSocket] { defineVersionAndHandleClient(clientSocket); });
         }
     }
 }
@@ -225,8 +226,7 @@ Socket Server::acceptClient() const {
     return clientSocket;
 }
 
-
-void Server::defineVersionAndHandleClient(Socket &clientSocket) {
+void Server::defineVersionAndHandleClient(Socket clientSocket) {
     char buffer[MESSAGE_SIZE] = {};
     const ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer));
     if (result.status != ReceiveStatus::SUCCESS) {
@@ -448,6 +448,7 @@ void Server::updateCommandStatistics(const std::string &command) {
     std::lock_guard<std::mutex> lock(_statisticsMutex);
     _commandStatistics[command]++;
 }
+
 
 void Server::displayCommandStatistics() const {
     std::lock_guard<std::mutex> lock(_statisticsMutex);

@@ -46,7 +46,7 @@ private:
 
     void run();
     Socket acceptClient() const;
-    void defineVersionAndHandleClient(Socket &clientSocket);
+    void defineVersionAndHandleClient(Socket clientSocket);
 
     void handleClient1dot0(Socket &clientSocket);
     void handleClient2dot0(Socket &clientSocket);
