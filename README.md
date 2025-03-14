@@ -1,4 +1,4 @@
-# Client-Server Application for File Transfer
+# Client-Server Application for File Transfer (Version 2)
 
 ## Overview
 This project implements a **Client-Server application** over **TCP** that allows clients to perform various file operations on the server, including **uploading, downloading, listing, deleting**, and **retrieving file information**. The communication follows a **custom protocol** for handling these requests and responses.
@@ -11,6 +11,20 @@ The system includes a **Socket class** for handling low-level socket operations,
 - **Message Prefix**: A 4-byte length prefix indicating the size of the data being sent, ensuring reliable data transfer.
 - **Error Handling**: Proper error codes for invalid operations (e.g., file not found, permission errors, server failures).
 - **ClientCLI**: A command-line interface to interact with the server and perform file operations.
+- **UTF-8 Encoding**: All text data (e.g., filenames, messages) is encoded in **UTF-8**, where **1 character = 1 byte**.
+- **Client Authentication**: Clients must provide a valid username to connect to the server. Usernames are validated and used to create separate folders for each client.
+- **Username Limitation**: Only **one simultaneous connection** is allowed per username. If a client with the same username tries to connect while another client with that username is already connected, the behavior is **unexpected** (this case is not yet synchronized).
+
+### **New Features in Version 2**:
+- **Multiple Simultaneous Clients**: Support for handling multiple clients simultaneously using a thread pool.
+- **Thread Pool**: Efficiently manages worker threads to distribute client-handling tasks.
+- **Server CLI Stop Functionality**: Gracefully stop the server by pressing `q` in the server CLI.
+- **Client Authentication**: Introduced client authentication using usernames.
+- **Separate Folders for Clients**: Each client has a separate folder for file operations, ensuring data isolation.
+- **Backward Compatibility for v1 Clients**: Added support for handling v1 clients with version-specific logic.
+- **Timeouts and Enhanced Message Receiving**: Implemented timeouts for socket operations and added the `receiveMessage` function to handle different receive statuses (success, timeout, client disconnect, error).
+- **Statistics Tracking**: Track and display server command statistics (e.g., number of times each command is executed).
+- **Code Refactoring**: Refactored the `Server` and `Client` classes to accommodate new features. Updated the `Socket` class to support timeouts and graceful shutdown.
 
 ## Installation and Compilation
 
@@ -26,12 +40,13 @@ The program requires **C++11 or higher**.
 ```bash
 g++ -std=c++11 -pthread socket/Socket.cpp -o socket/Socket.o
 ar rcs libsocket.a socket/Socket.o
-g++ -std=c++11 -pthread server/Server.cpp server/main.cpp -L. -lsocket -o server
+g++ -std=c++11 -pthread server/Server.cpp server/main.cpp server/ThreadPool.cpp -L. -lsocket -o server
 g++ -std=c++11 -pthread client/Client.cpp client/main.cpp client/ClientCLI.cpp -L. -lsocket -o client
 ```
 
 #### **Using CMake**
 Alternatively, use CMake for a more structured build process.
+
 ### Summary of Compilation Commands:
 
 1. **Compile Socket Library**:
@@ -46,13 +61,14 @@ Alternatively, use CMake for a more structured build process.
 
 2. **Compile Server**:
 
-   Navigate to the `server/src` directory, compile the `Server.cpp` and `main.cpp` files, and link them with the static library `libsocket.a`:
+   Navigate to the `server/src` directory, compile the `Server.cpp`, `main.cpp`, and `ThreadPool.cpp` files, and link them with the static library `libsocket.a`:
 
    ```bash
    cd server/src
    g++ -c Server.cpp -o Server.o
    g++ -c main.cpp -o main.o
-   g++ Server.o main.o -L../../socket/src -lsocket -o server
+   g++ -c ThreadPool.cpp -o ThreadPool.o
+   g++ Server.o main.o ThreadPool.o -L../../socket/src -lsocket -o server
    ```
 
 3. **Compile Client**:
@@ -99,6 +115,12 @@ Alternatively, use CMake for a more structured build process.
   INFO myfile.txt
   ```
 
+### **New Features in Action**:
+- **Stop the Server**: Press `q` in the server CLI to stop the server gracefully.
+- **Client Authentication**: Enter a username when connecting to the server. Each client has a separate folder for file operations.
+- **Statistics Tracking**: View server command statistics by checking the server logs.
+- **Username Limitation**: Only one client with a given username can be connected at a time. Attempting to connect with the same username while another client is already connected will result in **unexpected behavior**.
+
 ## Code Structure
 ```
 client-server/
@@ -112,9 +134,11 @@ client-server/
 │── server/                   # Contains the server-side code
 │   ├── files/                # Folder containing files for transfer or operations
 │   ├── include/              # Header files for server-side code
-│   │   └── Server.h          # Header file for the Server class
+│   │   ├── Server.h          # Header file for the Server class
+│   │   └── ThreadPool.h      # Header file for the ThreadPool class
 │   ├── src/                  # Source files for server-side code
 │   │   ├── Server.cpp        # Implementation of the Server class
+│   │   ├── ThreadPool.cpp    # Implementation of the ThreadPool class
 │   │   └── main.cpp          # Entry point for the server application
 │   ├── CMakeLists.txt        # CMake configuration for server
 │
@@ -133,16 +157,19 @@ client-server/
 │── .gitignore                # Git ignore file for excluding unnecessary files
 │── .gitattributes            # Git attributes file
 │── README.md                 # Project documentation (this file)
-
 ```
 
-## Protocol Description
+## Protocol Description (Version 2)
 
 ### **Message Format**:
 - **Prefix**: 4-byte unsigned integer (network byte order) indicating the length of the data.
-- **Data**: The actual message or file data, length specified by the prefix.
+- **Data**: The actual message or file data, length specified by the prefix. All text data is encoded in **UTF-8**, where **1 character = 1 byte**.
 
-Here is the updated communication example using the table format you provided:
+### **Client Authentication**:
+- After connecting to the server, the client must send a **username** as part of the authentication process.
+- The server validates the username and responds with `200 OK` if the username is valid or `400 BAD REQUEST` if the username is invalid.
+- Usernames must be alphanumeric and cannot contain special characters or spaces.
+- **Limitation**: Only **one simultaneous connection** is allowed per username. If a client with the same username tries to connect while another client with that username is already connected, the behavior is **unexpected** (this case is not yet synchronized).
 
 ### **Communication Example**:
 
@@ -150,6 +177,7 @@ Here is the updated communication example using the table format you provided:
 |-----------------------|-------------------------------------|-----------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
 | **Connect**           | –                                   | –                                                               | `200 OK`                                                                                                                                     | 6 bytes                                                         |
 | **Version Handshake** | `<version>` ex. `1.0.`              | Variable length max 512: version length                         | `200 OK` / `400 BAD REQUEST`: Invalid version.                                                                                               | 6 / 34                                                          |
+| **Username**          | `<username>`                        | Variable length max 512: username length                        | `200 OK` / `400 BAD REQUEST`: Invalid username.                                                                                              | 6 / 34                                                          |
 | **LIST**              | `LIST`                              | 4 bytes                                                         | List of files / `500 SERVER ERROR`: Failed to open directory. / `204 NO CONTENT`: The directory is empty.                                    | Variable length max 512: response length (43/39)                |
 | **GET**               | `GET <filename>`                    | Variable length max 512: 4 + filename length                    | `200 OK` / `400 BAD REQUEST`: Invalid filename. / `404 NOT FOUND`: File does not exist.                                                      | Variable length max 512: (6/34/35)                              |
 |                       | `ACK`                               | 3                                                               | File data + `""` (EOF)                                                                                                                       | Variable length, chunks of 1024 bytes followed by empty string. |
