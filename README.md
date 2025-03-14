@@ -62,8 +62,8 @@ g++ -o server Server.cpp Socket.cpp -lpthread
 ## Version-Specific Documentation
 For detailed documentation on each version, refer to the `README.md` in the respective branch:
 
-- **[v1 Documentation](https://github.com/iravelmakina/client-server/tree/v1)**
-- **[v2 Documentation](https://github.com/iravelmakina/client-server/tree/v2)**
+- **[v1 Documentation](https://github.com/iravelmakina/client-server/tree/version-1)**
+- **[v2 Documentation](https://github.com/iravelmakina/client-server/tree/version-2)**
 
 ---
 
