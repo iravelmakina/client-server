@@ -51,7 +51,6 @@ void Server::handleList(const Socket &clientSocket, const std::string &username)
         perror("opendir");
         clientSocket.sendData("500 SERVER ERROR: Failed to open directory.");
         return;
-    }
 
     dirent *entry;
     std::ostringstream fileListStream;
@@ -225,6 +224,7 @@ Socket Server::acceptClient() const {
 
     return clientSocket;
 }
+
 
 void Server::defineVersionAndHandleClient(Socket &clientSocket) {
     char buffer[MESSAGE_SIZE] = {};
