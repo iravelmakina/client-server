@@ -29,6 +29,11 @@ void ThreadPool::shutdown() {
 }
 
 
+size_t ThreadPool::activeThreads() const {
+    return _activeThreads;
+}
+
+
 ThreadPool::~ThreadPool() {
     if (!_stopFlag) {
         shutdown();
@@ -52,9 +57,4 @@ void ThreadPool::executionCycle() {
         task();
         --_activeThreads;
     }
-}
-
-
-size_t ThreadPool::activeThreads() const {
-    return _activeThreads;
 }

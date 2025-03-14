@@ -77,16 +77,6 @@ std::vector<std::string> ClientCLI::parseInput(const std::string &input) {
 }
 
 
-bool ClientCLI::isValidUsername(const std::string& username) {
-    for (const char c : username) {
-        if (!isalnum(c)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-
 std::string ClientCLI::getUsernameFromUser() {
     std::string username;
     while (true) {
@@ -99,4 +89,14 @@ std::string ClientCLI::getUsernameFromUser() {
         }
     }
     return username;
+}
+
+
+bool ClientCLI::isValidUsername(const std::string& username) {
+    for (const char c : username) {
+        if (!isalnum(c)) {
+            return false;
+        }
+    }
+    return true;
 }

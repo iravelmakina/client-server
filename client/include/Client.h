@@ -22,12 +22,10 @@ public:
     explicit Client(const std::string &directory);
 
     int connect(const char *serverIp, int port);
+    void disconnect();
+    bool isConnected() const;
 
     int sendUsername(const std::string &username);
-
-    void disconnect();
-
-    bool isConnected() const;
 
     void listFiles();
     void getFile(const std::string &filename);

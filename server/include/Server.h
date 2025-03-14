@@ -36,6 +36,7 @@ public:
 private:
     Socket _serverSocket;
     const std::string _directory;
+
     ThreadPool _threadPool;
     size_t _maxSimultaneousClients;
     std::atomic<bool> _stopFlag{false};
@@ -43,13 +44,8 @@ private:
     std::unordered_map<std::string, int> _commandStatistics;
     mutable std::mutex _statisticsMutex;
 
-    void updateCommandStatistics(const std::string &command);
-    void displayCommandStatistics() const;
-
     void run();
-
     Socket acceptClient() const;
-
     void defineVersionAndHandleClient(Socket clientSocket);
 
     void handleClient1dot0(Socket clientSocket);
@@ -66,4 +62,8 @@ private:
     bool createClientFolderIfNotExists(const std::string &clientName) const;
 
     static std::string getFilePermissions(mode_t mode);
+
+    void updateCommandStatistics(const std::string &command);
+    void displayCommandStatistics() const;
+
 };

@@ -17,7 +17,7 @@ private:
 
     static std::vector<std::string> parseInput(const std::string &input);
 
-    static bool isValidUsername(const std::string &username);
-
     static std::string getUsernameFromUser();
+
+    static bool isValidUsername(const std::string &username);
 };
