@@ -1,14 +1,23 @@
 #include "Server.h"
+#include "ThreadPool.h"
 
 #include <iostream>
 #include <sstream>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <thread>
 #include <sys/fcntl.h>
 
 
-Server::Server(const std::string &directory) : _directory(directory) {
+const std::vector<std::string> COMMANDS = {"GET", "PUT", "LIST", "DELETE", "INFO", "EXIT"};
+
+
+Server::Server(const std::string &directory, const size_t maxSimultaneousClients) : _directory(directory),
+    _threadPool(maxSimultaneousClients), _maxSimultaneousClients(maxSimultaneousClients) {
+    for (const std::string &command: COMMANDS) {
+        _commandStatistics[command] = 0;
+    }
 }
 
 
@@ -17,7 +26,7 @@ void Server::start(const int port) {
         return;
     }
 
-    if (!_serverSocket.bindS(port) || !_serverSocket.listenS(1)) {
+    if (!_serverSocket.bindS(port) || !_serverSocket.listenS(SOMAXCONN)) {
         _serverSocket.closeS();
         return;
     }
@@ -26,156 +35,22 @@ void Server::start(const int port) {
 }
 
 
-void Server::stop() {
+void Server::shutdown() {
+    _stopFlag = true;
+    _serverSocket.shutdownS();
     _serverSocket.closeS();
+    _threadPool.shutdown();
     std::cout << "Server stopped." << std::endl;
+    displayCommandStatistics();
 }
 
 
-void Server::run() const {
-    while (true) {
-        Socket clientSocket = acceptClient();
-        if (clientSocket.getS() != -1) {
-            std::cout << "Client connected." << std::endl;
-            defineVersionAndHandleClient(clientSocket);
-            clientSocket.closeS();
-            std::cout << "Client disconnected." << std::endl;
-        }
-    }
-}
-
-
-Socket Server::acceptClient() const {
-    sockaddr_in clientAddr{};
-    socklen_t clientAddrLen = sizeof(clientAddr);
-    std::cout << "\nWaiting for a client to connect..." << std::endl;
-
-    const int clientFd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
-
-    const Socket clientSocket(clientFd);
-    clientSocket.sendData(RESPONSE_OK.c_str());
-
-    return clientSocket;
-}
-
-
-void Server::defineVersionAndHandleClient(const Socket &clientSocket) const {
-    char buffer[MESSAGE_SIZE] = {};
-    const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
-    if (bytesReceived <= 0) {
-        return;
-    }
-
-    const std::string initialMessage(buffer);
-    if (initialMessage == "1.0") {
-        clientSocket.sendData(RESPONSE_OK.c_str());
-        handleClient(clientSocket);
-    } else {
-        clientSocket.sendData("400 BAD REQUEST: Invalid version.");
-        std::cout << "\033[31m" << "Invalid version." << "\033[0m" << std::endl;
-    }
-}
-
-
-void Server::handleClient(const Socket &clientSocket) const {
-    while (true) {
-        char buffer[MESSAGE_SIZE] = {};
-        const ssize_t bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer));
-
-        if (bytesReceived <= 0) {
-            break;
-        }
-
-        std::string command(buffer);
-        std::cout << "Received command: " << command << std::endl;
-
-        if (command.find("GET") == 0) {
-            if (!isValidFilename(clientSocket, command.substr(4))) {
-                continue;
-            }
-            handleGet(clientSocket, command.substr(4));
-        } else if (command == "LIST") {
-            handleList(clientSocket);
-        } else if (command.find("PUT") == 0) {
-            if (!isValidFilename(clientSocket, command.substr(4))) {
-                continue;
-            }
-            handlePut(clientSocket, command.substr(4));
-        } else if (command.find("DELETE") == 0) {
-            if (!isValidFilename(clientSocket, command.substr(7))) {
-                continue;
-            }
-            handleDelete(clientSocket, command.substr(7));
-        } else if (command.find("INFO") == 0) {
-            if (!isValidFilename(clientSocket, command.substr(5))) {
-                continue;
-            }
-            handleInfo(clientSocket, command.substr(5));
-        } else if (command == "EXIT") {
-            break;
-        } else {
-            clientSocket.sendData("400 BAD REQUEST: Invalid command.");
-        }
-    }
-}
-
-
-void Server::handleGet(const Socket &clientSocket, const std::string &filename) const {
-    const std::string filePath = _directory + filename;
-    const int fileFd = open(filePath.c_str(), O_RDONLY);
-    if (fileFd == -1) {
-        perror("open");
-        clientSocket.sendData("404 NOT FOUND: File does not exist.");
-        return;
-    }
-
-    clientSocket.sendData(RESPONSE_OK.c_str());
-
-    char ackBuffer[3] = {};
-    clientSocket.receiveData(ackBuffer, sizeof(ackBuffer));
-    if (std::string(ackBuffer) != RESPONSE_ACK) {
-        std::cout << "\033[31m" << "Client did not acknowledge 200 OK." << "\033[0m" << std::endl;
-        return;
-    }
-
-    char buffer[FILE_BUFFER_SIZE];
-    ssize_t bytesRead;
-    while ((bytesRead = read(fileFd, buffer, sizeof(buffer))) > 0) {
-        clientSocket.sendData(buffer, bytesRead);
-    }
-    clientSocket.sendData("", 0);
-    close(fileFd);
-}
-
-
-void Server::handlePut(const Socket &clientSocket, const std::string &filename) const {
-    const int fileFd = open((_directory + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
-    if (fileFd == -1) {
-        perror("open");
-        clientSocket.sendData("500 SERVER ERROR: Unable to create file.");
-        return;
-    }
-
-    clientSocket.sendData(RESPONSE_OK.c_str());
-
-    char buffer[FILE_BUFFER_SIZE];
-    ssize_t bytesReceived;
-    while ((bytesReceived = clientSocket.receiveData(buffer, sizeof(buffer))) > 0) {
-        write(fileFd, buffer, bytesReceived);
-    }
-
-    close(fileFd);
-    clientSocket.sendData(RESPONSE_OK.c_str());
-}
-
-
-void Server::handleList(const Socket &clientSocket) const {
-    DIR *dir = opendir(_directory.c_str());
+void Server::handleList(const Socket &clientSocket, const std::string &username) const {
+    DIR *dir = opendir((_directory + username).c_str());
     if (!dir) {
         perror("opendir");
         clientSocket.sendData("500 SERVER ERROR: Failed to open directory.");
         return;
-    }
 
     dirent *entry;
     std::ostringstream fileListStream;
@@ -203,8 +78,73 @@ void Server::handleList(const Socket &clientSocket) const {
 }
 
 
-void Server::handleDelete(const Socket &clientSocket, const std::string &filename) const {
-    const std::string filePath = _directory + filename;
+size_t Server::handleGet(const Socket &clientSocket, const std::string &username, const std::string &filename) const {
+    const std::string filePath = _directory + username + "/" + filename;
+    const int fileFd = open(filePath.c_str(), O_RDONLY);
+    if (fileFd == -1) {
+        perror("open");
+        clientSocket.sendData("404 NOT FOUND: File does not exist.");
+        return 0;
+    }
+
+    clientSocket.sendData(RESPONSE_OK.c_str());
+
+    char ackBuffer[3] = {};
+    const ReceiveResult result = receiveMessage(clientSocket, ackBuffer, sizeof(ackBuffer), username.c_str());
+    if (result.status != ReceiveStatus::SUCCESS) {
+        std::cout << "\033[31m" << result.message << "\033[0m" << std::endl;
+        close(fileFd);
+        return -1;
+    }
+
+    if (std::string(ackBuffer) != RESPONSE_ACK) {
+        std::cout << "\033[31m" << "Client did not acknowledge 200 OK." << "\033[0m" << std::endl;
+        return 0;
+    }
+
+    char buffer[FILE_BUFFER_SIZE];
+    ssize_t bytesRead;
+    while ((bytesRead = read(fileFd, buffer, sizeof(buffer))) > 0) {
+        clientSocket.sendData(buffer, bytesRead);
+    }
+    clientSocket.sendData("", 0);
+    close(fileFd);
+    return 0;
+}
+
+
+size_t Server::handlePut(const Socket &clientSocket, const std::string &username, const std::string &filename) const {
+    const int fileFd = open((_directory + username + "/" + filename).c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (fileFd == -1) {
+        perror("open");
+        clientSocket.sendData("500 SERVER ERROR: Unable to create file.");
+        return 0;
+    }
+
+    clientSocket.sendData(RESPONSE_OK.c_str());
+
+    while (true) {
+        char buffer[FILE_BUFFER_SIZE];
+        const ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer), username.c_str());
+        if (result.status == ReceiveStatus::ERROR || result.status == ReceiveStatus::TIMEOUT) {
+            std::cout << "\033[31m" << result.message << "\033[0m" << std::endl;
+            close(fileFd);
+            return -1;
+        }
+        if (result.bytesReceived == 0) {
+            break;
+        }
+        write(fileFd, buffer, result.bytesReceived);
+    }
+
+    close(fileFd);
+    clientSocket.sendData(RESPONSE_OK.c_str());
+    return 0;
+}
+
+
+void Server::handleDelete(const Socket &clientSocket, const std::string &username, const std::string &filename) const {
+    const std::string filePath = _directory + username + "/" + filename;
 
     if (access(filePath.c_str(), F_OK) == 0) {
         if (unlink(filePath.c_str()) == 0) {
@@ -220,9 +160,9 @@ void Server::handleDelete(const Socket &clientSocket, const std::string &filenam
 }
 
 
-void Server::handleInfo(const Socket &clientSocket, const std::string &filename) const {
-    const std::string filePath = _directory + filename;
-    struct stat fileStat;
+void Server::handleInfo(const Socket &clientSocket, const std::string &username, const std::string &filename) const {
+    const std::string filePath = _directory + username + "/" + filename;
+    struct stat fileStat{};
 
     if (access(filePath.c_str(), F_OK) == 0) {
         if (stat(filePath.c_str(), &fileStat) == 0) {
@@ -241,6 +181,247 @@ void Server::handleInfo(const Socket &clientSocket, const std::string &filename)
         perror("access");
         clientSocket.sendData("404 NOT FOUND: File does not exist.");
     }
+}
+
+
+Server::~Server() {
+    if (!_stopFlag) {
+        shutdown();
+    }
+}
+
+
+void Server::run() {
+    while (!_stopFlag) {
+        Socket clientSocket = acceptClient();
+        if (clientSocket.getS() != -1) {
+            std::cout << "Client connected." << std::endl;
+            _threadPool.submit([this, &clientSocket] { defineVersionAndHandleClient(clientSocket); });
+        }
+    }
+}
+
+
+Socket Server::acceptClient() const {
+    sockaddr_in clientAddr{};
+    socklen_t clientAddrLen = sizeof(clientAddr);
+
+    const int clientFd = _serverSocket.acceptS(&clientAddr, &clientAddrLen);
+    if (clientFd == -1) {
+        return Socket(-1);
+    }
+
+    Socket clientSocket(clientFd);
+    clientSocket.setTimeoutSeconds(600);
+
+    if (_threadPool.activeThreads() >= _maxSimultaneousClients) {
+        clientSocket.sendData("503 SERVICE UNAVAILABLE: Server is busy. Please try again later.");
+        clientSocket.closeS();
+        return clientSocket;
+    }
+
+    clientSocket.sendData(RESPONSE_OK.c_str());
+
+    return clientSocket;
+}
+
+
+void Server::defineVersionAndHandleClient(Socket &clientSocket) {
+    char buffer[MESSAGE_SIZE] = {};
+    const ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer));
+    if (result.status != ReceiveStatus::SUCCESS) {
+        std::cout << "\033[31m" << result.message << "\033[0m" << std::endl;
+        cleanupClient(clientSocket);
+        return;
+    }
+
+    const std::string initialMessage(buffer);
+    std::string username;
+
+    if (initialMessage == "2.0") {
+        clientSocket.sendData(RESPONSE_OK.c_str());
+        handleClient2dot0(clientSocket);
+    } else if (initialMessage == "1.0") {
+        clientSocket.sendData(RESPONSE_OK.c_str());
+        handleClient1dot0(clientSocket);
+    } else {
+        clientSocket.sendData("400 BAD REQUEST: Invalid version.");
+        std::cout << "\033[31m" << "Invalid version." << "\033[0m" << std::endl;
+        cleanupClient(clientSocket);
+    }
+}
+
+
+void Server::handleClient1dot0(Socket &clientSocket) {
+    std::string username = "v1dot0";
+    processCommands(clientSocket, username);
+    cleanupClient(clientSocket, username.c_str());
+}
+
+
+void Server::handleClient2dot0(Socket &clientSocket) {
+    std::string username;
+    if (!authenticateClient(clientSocket, username)) {
+        cleanupClient(clientSocket);
+        return;
+    }
+
+    if (!createClientFolderIfNotExists(username)) {
+        clientSocket.sendData("500 SERVER ERROR: Unable to create client folder.");
+        cleanupClient(clientSocket, username.c_str());
+        return;
+    }
+    clientSocket.sendData(RESPONSE_OK.c_str());
+
+    processCommands(clientSocket, username);
+    cleanupClient(clientSocket, username.c_str());
+}
+
+
+bool Server::authenticateClient(const Socket &clientSocket, std::string &username) {
+    char buffer[MESSAGE_SIZE] = {};
+    const ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer));
+    if (result.status != ReceiveStatus::SUCCESS) {
+        std::cout << "\033[31m" << result.message << "\033[0m" << std::endl;
+        return false;
+    }
+
+    username = buffer;
+    if (!isValidUsername(username)) {
+        clientSocket.sendData("400 BAD REQUEST: Invalid username.");
+        std::cout << "\033[31m" << "Invalid username." << "\033[0m" << std::endl;
+        return false;
+    }
+
+    std::cout << "Client's name: " << username << std::endl;
+    return true;
+}
+
+
+void Server::processCommands(const Socket &clientSocket, std::string &username) {
+    char buffer[MESSAGE_SIZE] = {};
+    while (true) {
+        ReceiveResult result = receiveMessage(clientSocket, buffer, sizeof(buffer), username.c_str());
+        if (result.status != ReceiveStatus::SUCCESS) {
+            std::cout << "\033[31m" << result.message << "\033[0m" << std::endl;
+            break;
+        }
+
+        buffer[result.bytesReceived] = '\0';
+        std::string command(buffer);
+        std::cout << "Received command from " << username << ": " << command << std::endl;
+
+        std::istringstream stream(command);
+        std::string action, filename;
+        stream >> action;
+
+        updateCommandStatistics(action);
+
+        if (action == "INFO" || action == "GET" || action == "PUT" || action == "DELETE") {
+            stream >> filename;
+            if (!isValidFilename(filename)) {
+                clientSocket.sendData("400 BAD REQUEST: Invalid filename.");
+                return;
+            }
+        }
+
+        if (action == "GET") {
+            if (handleGet(clientSocket, username, filename) == -1) break;
+        } else if (action == "LIST") {
+            handleList(clientSocket, username);
+        } else if (action == "PUT") {
+            if (handlePut(clientSocket, username, filename) == -1) break;
+        } else if (action == "DELETE") {
+            handleDelete(clientSocket, username, filename);
+        } else if (action == "INFO") {
+            handleInfo(clientSocket, username, filename);
+        } else if (action == "EXIT") {
+            break;
+        } else {
+            clientSocket.sendData("400 BAD REQUEST: Invalid command.");
+        }
+    }
+}
+
+
+void Server::cleanupClient(Socket &clientSocket, const char *username) {
+    if (username == nullptr) {
+        std::cout << "Closing socket of not authenticated client." << std::endl;
+    } else {
+        std::cout << "Closing socket of client " << username << "." << std::endl;
+    }
+    clientSocket.closeS();
+}
+
+
+ReceiveResult Server::receiveMessage(const Socket &clientSocket, char *buffer, const size_t bufferSize,
+                                     const char *username) {
+    ReceiveResult result;
+    result.bytesReceived = clientSocket.receiveData(buffer, bufferSize);
+
+    if (username == nullptr) {
+        username = "not authenticated yet";
+    }
+    const std::string usernameStr(username);
+
+    if (result.bytesReceived > 0) {
+        result.status = ReceiveStatus::SUCCESS;
+        result.message = "Data received successfully from client" + usernameStr + ".";
+    } else if (result.bytesReceived == 0) {
+        result.status = ReceiveStatus::CLIENT_DISCONNECTED;
+        result.message = "Client " + usernameStr + " disconnected.";
+    } else {
+        switch (errno) {
+            case EAGAIN:
+                result.status = ReceiveStatus::TIMEOUT;
+                result.message = "Receive timeout from client " + usernameStr + ".";
+                break;
+            case ECONNRESET:
+                result.status = ReceiveStatus::CLIENT_DISCONNECTED;
+                result.message = "Client " + usernameStr + " disconnected.";
+                break;
+            default:
+                result.status = ReceiveStatus::ERROR;
+                result.message = std::string("Receive error: ") + strerror(errno) + " from client " + usernameStr + ".";
+                break;
+        }
+    }
+
+    return result;
+}
+
+
+bool Server::isValidUsername(const std::string &username) {
+    for (const char c: username) {
+        if (!isalnum(c) || isspace(c)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+bool Server::isValidFilename(const std::string &filename) {
+    if (filename.empty() || filename == "." || filename.find('/') != std::string::npos || filename.find('\\') !=
+        std::string::npos) {
+        return false;
+    }
+    return true;
+}
+
+
+bool Server::createClientFolderIfNotExists(const std::string &clientName) const {
+    const std::string clientFolder = _directory + clientName;
+
+    struct stat dirStat{};
+
+    if (stat(clientFolder.c_str(), &dirStat) != 0) {
+        if (mkdir(clientFolder.c_str(), 0777) == -1) {
+            perror("Error creating client folder");
+            return false;
+        }
+    }
+    return true;
 }
 
 
@@ -263,11 +444,15 @@ std::string Server::getFilePermissions(const mode_t mode) {
 }
 
 
-bool Server::isValidFilename(const Socket &clientSocket, const std::string &filename) {
-    if (filename.empty() || filename == "." || filename.find('/') != std::string::npos || filename.find('\\') !=
-        std::string::npos) {
-        clientSocket.sendData("400 BAD REQUEST: Invalid filename.");
-        return false;
+void Server::updateCommandStatistics(const std::string &command) {
+    std::lock_guard<std::mutex> lock(_statisticsMutex);
+    _commandStatistics[command]++;
+}
+
+void Server::displayCommandStatistics() const {
+    std::lock_guard<std::mutex> lock(_statisticsMutex);
+    std::cout << "\nCommand Statistics:" << std::endl;
+    for (const std::pair<const std::string, int> &entry: _commandStatistics) {
+        std::cout << entry.first << ": " << entry.second << " time(s)" << std::endl;
     }
-    return true;
 }

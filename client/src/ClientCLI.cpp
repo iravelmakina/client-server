@@ -13,6 +13,12 @@ void ClientCLI::run(const char *serverIp, const int port) {
         return;
     }
 
+    const std::string username = getUsernameFromUser();
+
+    if (client.sendUsername(username) == -1) {
+        return;
+    }
+
     std::string userInput;
     printMenu();
 
@@ -68,4 +74,30 @@ std::vector<std::string> ClientCLI::parseInput(const std::string &input) {
         tokens.push_back(token);
     }
     return tokens;
+}
+
+
+std::string ClientCLI::getUsernameFromUser() {
+    std::string username;
+    while (true) {
+        std::cout << "Enter your username: ";
+        std::getline(std::cin, username);
+        if (username.empty() || !isValidUsername(username)) {
+            std::cout << "Invalid username. Please enter a valid username (without special characters or empty)." <<
+                    std::endl;
+        } else {
+            break;
+        }
+    }
+    return username;
+}
+
+
+bool ClientCLI::isValidUsername(const std::string &username) {
+    for (const char c: username) {
+        if (!isalnum(c)) {
+            return false;
+        }
+    }
+    return true;
 }

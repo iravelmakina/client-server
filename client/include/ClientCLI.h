@@ -16,4 +16,8 @@ private:
     static void printMenu();
 
     static std::vector<std::string> parseInput(const std::string &input);
+
+    static std::string getUsernameFromUser();
+
+    static bool isValidUsername(const std::string &username);
 };

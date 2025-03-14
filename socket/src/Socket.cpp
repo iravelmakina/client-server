@@ -1,7 +1,6 @@
 #include "Socket.h"
 
 #include <iostream>
-#include <stdnoreturn.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 
@@ -56,10 +55,22 @@ int Socket::acceptS(sockaddr_in *clientAddr, socklen_t *clientLen) const {
                                     reinterpret_cast<struct sockaddr *>(clientAddr),
                                     clientLen);
     if (clientSocket == -1) {
+        if (_shutdownFlag && errno == ECONNABORTED) {
+            return -1;
+        }
         perror("Accept failed");
         return -1;
     }
+
     return clientSocket;
+}
+
+
+void Socket::shutdownS() {
+    if (_socketFd != -1) {
+        shutdown(_socketFd, SHUT_RDWR);
+        _shutdownFlag = true;
+    }
 }
 
 
@@ -93,16 +104,26 @@ ssize_t Socket::sendData(const char *data, size_t dataLen) const {
     if (sentBytes != sizeof(netDataLen)) {
         return -1; // failed to send complete length prefix
     }
+    if (sentBytes == 0) {
+        return 0;
+    }
 
     return send(_socketFd, data, dataLen, 0);
 }
 
 
 ssize_t Socket::receiveData(char *buffer, const size_t bufferSize) const {
+    if (!setRecvTimeout()) {
+        return -1; // failed to set receive timeout
+    }
+
     uint32_t netDataLen;
     const ssize_t receivedBytes = recv(_socketFd, &netDataLen, sizeof(netDataLen), MSG_WAITALL);
-    if (receivedBytes != sizeof(netDataLen)) {
+    if (receivedBytes != sizeof(netDataLen) && receivedBytes != 0) {
         return -1; // failed to receive complete length prefix
+    }
+    if (receivedBytes == 0) {
+        return 0;
     }
 
     const uint32_t dataLen = ntohl(netDataLen);
@@ -115,6 +136,23 @@ ssize_t Socket::receiveData(char *buffer, const size_t bufferSize) const {
 }
 
 
+bool Socket::setRecvTimeout() const {
+    if (_timeoutSeconds == -1) {
+        return true;
+    }
+
+    struct timeval tv{};
+    tv.tv_sec = _timeoutSeconds;
+    tv.tv_usec = 0;
+
+    if (setsockopt(_socketFd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1) {
+        perror("error setting receive timeout");
+        return false;
+    }
+    return true;
+}
+
+
 int Socket::getS() const {
     return _socketFd;
 }
@@ -122,4 +160,9 @@ int Socket::getS() const {
 
 void Socket::setS(const int s) {
     _socketFd = s;
+}
+
+
+void Socket::setTimeoutSeconds(const int timeoutSeconds) {
+    _timeoutSeconds = timeoutSeconds;
 }

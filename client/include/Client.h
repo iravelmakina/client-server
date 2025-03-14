@@ -2,14 +2,30 @@
 
 #include <Socket.h>
 
+
+enum class ReceiveStatus {
+    SUCCESS,
+    TIMEOUT,
+    SERVER_DISCONNECTED,
+    ERROR
+};
+
+struct ReceiveResult {
+    ReceiveStatus status;
+    std::string message;
+    ssize_t bytesReceived;
+};
+
+
 class Client {
 public:
     explicit Client(const std::string &directory);
 
     int connect(const char *serverIp, int port);
     void disconnect();
-
     bool isConnected() const;
+
+    int sendUsername(const std::string &username);
 
     void listFiles();
     void getFile(const std::string &filename);
