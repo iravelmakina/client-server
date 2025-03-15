@@ -165,6 +165,12 @@ client-server/
 If the command is incorrect:  
 **Server → Client**: `400 BAD REQUEST`: Invalid command. **33 bytes**
 
+<h3 align="center">Client-Server UML Sequence Diagram</h3>
+<p align="center">
+   <img width="295" alt="Client-Server UML Sequence Diagram" src="https://github.com/user-attachments/assets/79d80996-c851-4e19-be92-4987355ebb16" />
+</p>
+
+
 ## License
 
 This project is open-source under the **MIT License**.
