@@ -90,7 +90,7 @@ size_t Server::handleGet(const Socket &clientSocket, const std::string &username
 
     clientSocket.sendData(RESPONSE_OK.c_str());
 
-    char ackBuffer[3] = {};
+    char ackBuffer[4] = {};
     const ReceiveResult result = receiveMessage(clientSocket, ackBuffer, sizeof(ackBuffer), username.c_str());
     if (result.status != ReceiveStatus::SUCCESS) {
         std::cout << "\033[31m" << result.message << "\033[0m" << std::endl;

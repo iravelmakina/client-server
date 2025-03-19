@@ -4,7 +4,7 @@
 
 
 int main() {
-    Server server("files/", 2);
+    Server server("files/", 8);
     std::thread serverThread([&server] { server.start(9080); });
 
     while (true) {
