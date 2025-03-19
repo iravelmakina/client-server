@@ -1,206 +1,71 @@
-# Client-Server Application for File Transfer (Version 2)
+# Client-Server Architecture Implementation (v1 & v2)
 
 ## Overview
-This project implements a **Client-Server application** over **TCP** that allows clients to perform various file operations on the server, including **uploading, downloading, listing, deleting**, and **retrieving file information**. The communication follows a **custom protocol** for handling these requests and responses.
+This repository contains two versions of the server:
 
-The system includes a **Socket class** for handling low-level socket operations, a **Server class** for managing connections and file operations, and a **Client class** for interacting with the server. A **ClientCLI class** provides a simple command-line interface for users to interact with the server.
+- **v1**: The original implementation, designed for basic file operations and client-server communication.
+- **v2**: An improved version with enhanced features, including support for multiple simultaneous clients, client authentication, and more.
 
-## Features
-- **File Operations**: Implemented commands to handle files: **GET**, **PUT**, **LIST**, **DELETE**, and **INFO**.
-- **Client-Server Communication**: TCP-based communication with a custom protocol for sending and receiving data.
-- **Message Prefix**: A 4-byte length prefix indicating the size of the data being sent, ensuring reliable data transfer.
-- **Error Handling**: Proper error codes for invalid operations (e.g., file not found, permission errors, server failures).
-- **ClientCLI**: A command-line interface to interact with the server and perform file operations.
-- **UTF-8 Encoding**: All text data (e.g., filenames, messages) is encoded in **UTF-8**, where **1 character = 1 byte**.
-- **Client Authentication**: Clients must provide a valid username to connect to the server. Usernames are validated and used to create separate folders for each client.
-- **Username Limitation**: Only **one simultaneous connection** is allowed per username. If a client with the same username tries to connect while another client with that username is already connected, the behavior is **unexpected** (this case is not yet synchronized).
-
-### **New Features in Version 2**:
-- **Multiple Simultaneous Clients**: Support for handling multiple clients simultaneously using a thread pool.
-- **Thread Pool**: Efficiently manages worker threads to distribute client-handling tasks.
-- **Server CLI Stop Functionality**: Gracefully stop the server by pressing `q` in the server CLI.
-- **Client Authentication**: Introduced client authentication using usernames.
-- **Separate Folders for Clients**: Each client has a separate folder for file operations, ensuring data isolation.
-- **Backward Compatibility for v1 Clients**: Added support for handling v1 clients with version-specific logic.
-- **Timeouts and Enhanced Message Receiving**: Implemented timeouts for socket operations and added the `receiveMessage` function to handle different receive statuses (success, timeout, client disconnect, error).
-- **Statistics Tracking**: Track and display server command statistics (e.g., number of times each command is executed).
-- **Code Refactoring**: Refactored the `Server` and `Client` classes to accommodate new features. Updated the `Socket` class to support timeouts and graceful shutdown.
-
-## Installation and Compilation
-
-### **1. Clone the Repository**
-```bash
-git clone https://github.com/iravelmakina/client-server.git
-cd client-server
-```
-
-### **2. Compile the Program**
-#### **Using g++ (Linux/macOS)**
-The program requires **C++11 or higher**.
-```bash
-g++ -std=c++11 -pthread socket/Socket.cpp -o socket/Socket.o
-ar rcs libsocket.a socket/Socket.o
-g++ -std=c++11 -pthread server/Server.cpp server/main.cpp server/ThreadPool.cpp -L. -lsocket -o server
-g++ -std=c++11 -pthread client/Client.cpp client/main.cpp client/ClientCLI.cpp -L. -lsocket -o client
-```
-
-#### **Using CMake**
-Alternatively, use CMake for a more structured build process.
-
-### Summary of Compilation Commands:
-
-1. **Compile Socket Library**:
-
-   Navigate to the `socket/src` directory and compile the `Socket.cpp` file, then create the static library:
-
-   ```bash
-   cd socket/src
-   g++ -c Socket.cpp -o Socket.o
-   ar rcs libsocket.a Socket.o
-   ```
-
-2. **Compile Server**:
-
-   Navigate to the `server/src` directory, compile the `Server.cpp`, `main.cpp`, and `ThreadPool.cpp` files, and link them with the static library `libsocket.a`:
-
-   ```bash
-   cd server/src
-   g++ -c Server.cpp -o Server.o
-   g++ -c main.cpp -o main.o
-   g++ -c ThreadPool.cpp -o ThreadPool.o
-   g++ Server.o main.o ThreadPool.o -L../../socket/src -lsocket -o server
-   ```
-
-3. **Compile Client**:
-
-   Navigate to the `client/src` directory, compile the `Client.cpp`, `ClientCLI.cpp`, and `main.cpp` files, and link them with the static library `libsocket.a`:
-
-   ```bash
-   cd client/src
-   g++ -c Client.cpp -o Client.o
-   g++ -c ClientCLI.cpp -o ClientCLI.o
-   g++ -c main.cpp -o main.o
-   g++ Client.o ClientCLI.o main.o -L../../socket/src -lsocket -o client
-   ```
-
-## Usage
-
-### **Commands Supported**:
-- **LIST**: List all files in the server's directory.
-- **GET <filename>**: Download a file from the server.
-- **PUT <filename>**: Upload a file to the server.
-- **DELETE <filename>**: Delete a file from the server.
-- **INFO <filename>**: Retrieve metadata (size, last modified, etc.) of a file on the server.
-- **EXIT**: Disconnect from the server.
-
-### **Example**:
-- To **list files**:
-  ```bash
-  LIST
-  ```
-- To **download a file**:
-  ```bash
-  GET myfile.txt
-  ```
-- To **upload a file**:
-  ```bash
-  PUT myfile.txt
-  ```
-- To **delete a file**:
-  ```bash
-  DELETE myfile.txt
-  ```
-- To **get file info**:
-  ```bash
-  INFO myfile.txt
-  ```
-
-### **New Features in Action**:
-- **Stop the Server**: Press `q` in the server CLI to stop the server gracefully.
-- **Client Authentication**: Enter a username when connecting to the server. Each client has a separate folder for file operations.
-- **Statistics Tracking**: View server command statistics by checking the server logs.
-- **Username Limitation**: Only one client with a given username can be connected at a time. Attempting to connect with the same username while another client is already connected will result in **unexpected behavior**.
-
-## Code Structure
-```
-client-server/
-│── socket/                   # Contains all socket-related code
-│   ├── include/              # Header files for socket library
-│   │   └── Socket.h          # Header file for the Socket class
-│   ├── src/                  # Source files for socket library
-│   │   └── Socket.cpp        # Implementation of the Socket class
-│   ├── CMakeLists.txt        # CMake configuration for socket library
-│
-│── server/                   # Contains the server-side code
-│   ├── files/                # Folder containing files for transfer or operations
-│   ├── include/              # Header files for server-side code
-│   │   ├── Server.h          # Header file for the Server class
-│   │   └── ThreadPool.h      # Header file for the ThreadPool class
-│   ├── src/                  # Source files for server-side code
-│   │   ├── Server.cpp        # Implementation of the Server class
-│   │   ├── ThreadPool.cpp    # Implementation of the ThreadPool class
-│   │   └── main.cpp          # Entry point for the server application
-│   ├── CMakeLists.txt        # CMake configuration for server
-│
-│── client/                   # Contains the client-side code
-│   ├── files/                # Folder containing files for transfer or operations
-│   ├── include/              # Header files for client-side code
-│   │   ├── Client.h          # Header file for the Client class
-│   │   └── ClientCLI.h       # Header file for the ClientCLI class
-│   ├── src/                  # Source files for client-side code
-│   │   ├── Client.cpp        # Implementation of the Client class
-│   │   ├── ClientCLI.cpp     # Implementation of the ClientCLI class
-│   │   └── main.cpp          # Entry point for the client application
-│   ├── CMakeLists.txt        # CMake configuration for client
-│
-│── CMakeLists.txt            # Root CMake configuration file for the whole project
-│── .gitignore                # Git ignore file for excluding unnecessary files
-│── .gitattributes            # Git attributes file
-│── README.md                 # Project documentation (this file)
-```
-
-## Protocol Description (Version 2)
-
-### **Message Format**:
-- **Prefix**: 4-byte unsigned integer (network byte order) indicating the length of the data.
-- **Data**: The actual message or file data, length specified by the prefix. All text data is encoded in **UTF-8**, where **1 character = 1 byte**.
-
-### **Client Authentication**:
-- After connecting to the server, the client must send a **username** as part of the authentication process.
-- The server validates the username and responds with `200 OK` if the username is valid or `400 BAD REQUEST` if the username is invalid.
-- Usernames must be alphanumeric and cannot contain special characters or spaces.
-- **Limitation**: Only **one simultaneous connection** is allowed per username. If a client with the same username tries to connect while another client with that username is already connected, the behavior is **unexpected** (this case is not yet synchronized).
-
-### **Protocol Description**:
-
-| **Action**            | **Client**                          | **Message Length**                                              | **Server**                                                                                                                                   | **Message Length (bytes)**                                              |
-|-----------------------|-------------------------------------|-----------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------|
-| **Connect**           | –                                   | –                                                               | `200 OK` / `503 SERVICE UNAVAILABLE`: Server is busy. Please try again later.                                                                | Variable length<br>max 512: (6/64)                                                        |
-| **Version Handshake** | `<version>` ex. `2.0.`              | Variable length<br>max 512: version length                         | `200 OK` / `400 BAD REQUEST`: Invalid version.                                                                                               | Variable length<br>max 512: (6/34)                                                         |
-| **Username**          | `<username>`                        | Variable length<br>max 512: username length                        | `200 OK` / `400 BAD REQUEST`: Invalid username. / `500 SERVER ERROR`: Unable to create client folder.                                        | Variable length<br>max 512: (6/34/49)                                                       |
-| **LIST**              | `LIST`                              | 4 bytes                                                         | List of files / `500 SERVER ERROR`: Failed to open directory. / `204 NO CONTENT`: The directory is empty.                                    | Variable length<br>max 512: (response length/43/39)                |
-| **GET**               | `GET <filename>`                    | Variable length<br>max 512: 4 + filename length                    | `200 OK` / `400 BAD REQUEST`: Invalid filename. / `404 NOT FOUND`: File does not exist.                                                      | Variable length<br>max 512: (6/34/35)                             |
-|                       | `ACK`                               | 3                                                               | File data + `""` (EOF)                                                                                                                       | Variable length, chunks of 1024 bytes followed by empty string. |
-| **PUT**               | `PUT <filename>`                    | Variable length<br>max 512: 4 + filename length                    | `200 OK` / `400 BAD REQUEST`: Invalid filename. / `500 SERVER ERROR`: Unable to create file.                                                 | Variable length<br>max 512: (6/34/40)                             |
-|                       | File data + `""` (EOF)              | Variable length, chunks of 1024 bytes followed by empty string. | `200 OK`                                                                                                                                     | 6                                                               |
-| **INFO**              | `INFO <filename>`                   | Variable length<br>max 512: 5 + filename length                    | File info / `400 BAD REQUEST`: Invalid filename. / `500 SERVER ERROR`: Unable to retrieve file info. / `404 NOT FOUND`: File does not exist. | Variable length<br>max 512: (response length/34/47/35)             |
-| **DELETE**            | `DELETE <filename>`                 | Variable length<br>max 512: 7 + filename length                    | `200 OK` / `400 BAD REQUEST`: Invalid filename. / `500 SERVER ERROR`: Unable to delete file. / `404 NOT FOUND`: File does not exist.         | Variable length<br>max 512: (6/34/40/35)                           |
-| **EXIT**              | `EXIT`                              | 4                                                               | –                                                                                                                                            | –                                                               |
+The `main` branch contains the **latest stable version** of the server (currently **v2**), which is backward-compatible with **v1** clients.
 
 ---
 
-### Invalid Command Handling
-If the command is incorrect:  
-**Server → Client**: `400 BAD REQUEST`: Invalid command. **33 bytes**
+## Features by Version
 
-<h3 align="center">Client-Server UML Sequence Diagram</h3>
-<p align="center">
-   <img width="307" alt="Client-Server UML Sequence Diagram" src="https://github.com/user-attachments/assets/1945afa9-5eca-4b8e-8059-a80f4e34f4fd" />
-</p>
+### **v1 Features**:
+- Basic file operations: **GET**, **PUT**, **LIST**, **DELETE**, and **INFO**.
+- Simple client-server communication with a custom protocol.
+- No support for multiple simultaneous clients or client authentication.
 
+### **v2 Features**:
+- **Multiple Simultaneous Clients**: Support for handling multiple clients using a thread pool.
+- **Client Authentication**: Clients must provide a valid username to connect.
+- **Separate Folders for Clients**: Each client has a dedicated folder for file operations.
+- **Backward Compatibility**: Supports **v1** clients with version detection.
+- **Timeouts and Enhanced Message Receiving**: Improved handling of unresponsive clients.
+- **Statistics Tracking**: Tracks and displays server command statistics.
+- **Server CLI Stop Functionality**: Gracefully stop the server by pressing `q` in the server CLI.
+
+---
+
+## Compatibility
+
+| Client Version | Compatible Server Versions          |
+|----------------|-------------------------------------|
+| **v1**         | ✅ v1, ✅ v2 (backward-compatible)  |
+| **v2**         | ✅ v2                     |
+
+---
+
+## How to Use Different Versions
+
+### **Switching Between Versions**
+To use **v1**:
+```bash
+git checkout v1
+```
+
+To use **v2**:
+```bash
+git checkout v2
+```
+
+### **Running the Server**
+Compile and run the server:
+```bash
+g++ -o server Server.cpp Socket.cpp -lpthread
+./server
+```
+
+---
+
+## Version-Specific Documentation
+For detailed documentation on each version, refer to the `README.md` in the respective branch:
+
+- **[v1 Documentation](https://github.com/iravelmakina/client-server/tree/version-1)**
+- **[v2 Documentation](https://github.com/iravelmakina/client-server/tree/version-2)**
 
 ---
 
 ## License
-
 This project is open-source under the **MIT License**.
