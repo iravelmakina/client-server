@@ -450,7 +450,7 @@ void Server::updateCommandStatistics(const std::string &command) {
 }
 
 
-void Server::displayCommandStatistics() const {
+void Server::displayCommandStatistics() {
     std::lock_guard<std::mutex> lock(_statisticsMutex);
     std::cout << "\nCommand Statistics:" << std::endl;
     for (const std::pair<const std::string, int> &entry: _commandStatistics) {

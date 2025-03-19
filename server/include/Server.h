@@ -42,7 +42,7 @@ private:
     std::atomic<bool> _stopFlag{false};
 
     std::unordered_map<std::string, int> _commandStatistics;
-    mutable std::mutex _statisticsMutex;
+    std::mutex _statisticsMutex;
 
     void run();
     Socket acceptClient() const;
@@ -64,6 +64,6 @@ private:
     static std::string getFilePermissions(mode_t mode);
 
     void updateCommandStatistics(const std::string &command);
-    void displayCommandStatistics() const;
+    void displayCommandStatistics();
 
 };
